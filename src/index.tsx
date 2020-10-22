@@ -1,16 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDom from 'react-dom'
 
-let width = 320
-let height = 0
-
-let streaming = false
-let video = null
-let canvas = null
-let photo = null
-let button = null
-
 const App = () => {
+
     const video = useRef (null)
 
     useEffect (() => {
