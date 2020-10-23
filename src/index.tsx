@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ReactDom from 'react-dom'
 
+import './reset.css'
+import './index.css'
+
 const width = 320
 
 const App = () => {
@@ -23,7 +26,8 @@ const App = () => {
                 try {
 
                     const context = canvas.current.getContext ('2d')
-                    context.fillStyle = '#AAA'
+
+                    context.fillStyle = '#0000'
                     context.fillRect (0, 0, canvas.current.width, canvas.current.height)
 
                     image.current.setAttribute ('src', canvas.current.toDataURL ('image/png'))
@@ -57,6 +61,9 @@ const App = () => {
                         video.current.setAttribute ('height', height)
                         canvas.current.setAttribute ('width', width)
                         canvas.current.setAttribute ('height', height)
+                        canvas.current
+                            .getContext ('2d')
+                            .setTransform (-1, 0, 0, 1, canvas.current.width, 0)
 
                         setStreaming (true)
                     } }
