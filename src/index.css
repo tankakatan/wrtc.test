@@ -27,6 +27,7 @@ a.button {
     color: #444;
     font-size: 16px;
     background-color: #eee;
+    text-transform: capitalize;
 }
 
 a.button:hover {

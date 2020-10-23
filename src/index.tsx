@@ -1,5 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDom from 'react-dom'
+import React, {
+    useRef,
+    useState,
+    useEffect,
+    useCallback,
+} from 'react'
 
 import './reset.css'
 import './index.css'
@@ -11,12 +16,14 @@ const App = () => {
     const video = useRef (null)
     const image = useRef (null)
     const canvas = useRef (null)
-    const offerOut = useRef (null)
 
     const [streaming, setStreaming] = useState (false)
     const [connection, setConnection] = useState (null)
+    const [offerButtonText, setOfferButtonText] = useState ('make an offer')
 
-    const takeAShot = useCallback (() => {
+    const takeAShot = useCallback ((e: React.MouseEvent) => {
+
+        e.preventDefault ()
 
         const context = canvas.current.getContext ('2d')
 
@@ -33,6 +40,7 @@ const App = () => {
 
         video.current.setAttribute ('width', width)
         video.current.setAttribute ('height', height)
+
         canvas.current.setAttribute ('width', width)
         canvas.current.setAttribute ('height', height)
         canvas.current
@@ -43,27 +51,28 @@ const App = () => {
 
     }, [ canvas, video ])
 
-    const makeAnOffer = useCallback (async () => {
+    const makeAnOffer = useCallback (async (e: React.MouseEvent) => {
+
+        e.preventDefault ()
 
         connection.createDataChannel ('chat')
         const description = await connection.createOffer ()
+
         await connection.setLocalDescription (description)
+        await navigator.clipboard.writeText (connection.localDescription.sdp)
 
-        offerOut.current.innerText = connection.localDescription.sdp
+        setOfferButtonText ('copied')
 
-    }, [ connection, offerOut ])
+    }, [ connection ])
 
     useEffect (() => {
         void (async () => {
-
             try {
-
                 const stream = await navigator.mediaDevices.getUserMedia ({ video: true, audio: false })
                 video.current.srcObject = stream
                 video.current.play ()
 
                 try {
-
                     const context = canvas.current.getContext ('2d')
 
                     context.fillStyle = '#0000'
@@ -72,24 +81,19 @@ const App = () => {
                     image.current.setAttribute ('src', canvas.current.toDataURL ('image/png'))
 
                 } catch (e) {
-
                     console.error ('Canvas error:', e)
                 }
 
                 try {
-
                     setConnection (new RTCPeerConnection ({}))
 
                 } catch (e) {
-
                     console.error ('Connecton error:', e)
                 }
 
             } catch (e) {
-
                 console.error ('User media error:', e)
             }
-
         }) ()
     }, [])
 
@@ -106,14 +110,13 @@ const App = () => {
                 <img ref={ image } id='image' alt='Screen shot will appear in thin box.'/>
             </div>
             <div>
-                <pre ref={ offerOut }></pre>
-                <Button onClick={ makeAnOffer }>Make an offer</Button>
+                <Button onClick={ makeAnOffer }>{ offerButtonText }</Button>
             </div>
         </div>
     )
 }
 
-const Button = ({ className = '', onClick = () => {}, children = undefined as React.ReactNode }) => (
+const Button = ({ className = '', onClick = (_: React.MouseEvent) => {}, children = undefined as React.ReactNode }) => (
     <a href='#' onClick={ onClick } className={ 'button' + (className ? (' ' + className) : '') }>
         { children }
     </a>
