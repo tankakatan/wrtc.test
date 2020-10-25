@@ -19,7 +19,19 @@ const App = () => {
 
     const [streaming, setStreaming] = useState (false)
     const [connection, setConnection] = useState (null)
-    const [offerButtonText, setOfferButtonText] = useState ('make an offer')
+    const [copied, setCopied] = useState (false)
+
+    const query = document.location.search
+                                   .slice (1)
+                                   .split ('&')
+                                   .map (str => str.split ('='))
+                                   .reduce ((q, p: [string, string]) => ({ ...q,
+                                       [p[0]]: p[1] }), {} as { offer: string, answer: string })
+
+    // window.history.replaceState (window.history.state, document.title, window.location.origin)
+
+    const offer = 'offer' in query ? atob (decodeURIComponent (query.offer)) : undefined
+    const answer = 'answer' in query ? atob (decodeURIComponent (query.answer)) : undefined
 
     const takeAShot = useCallback ((e: React.MouseEvent) => {
 
@@ -44,26 +56,36 @@ const App = () => {
         canvas.current.setAttribute ('width', width)
         canvas.current.setAttribute ('height', height)
         canvas.current
-            .getContext ('2d')
-            .setTransform (-1, 0, 0, 1, canvas.current.width, 0)
+              .getContext ('2d')
+              .setTransform (-1, 0, 0, 1, canvas.current.width, 0)
 
         setStreaming (true)
 
     }, [ canvas, video ])
 
-    const makeAnOffer = useCallback (async (e: React.MouseEvent) => {
+    const getALink = useCallback (async (e: React.MouseEvent) => {
 
         e.preventDefault ()
 
-        connection.createDataChannel ('chat')
-        const description = await connection.createOffer ()
+        if (copied) return
 
-        await connection.setLocalDescription (description)
-        await navigator.clipboard.writeText (connection.localDescription.sdp)
+        if (!offer){
+            connection.createDataChannel ('chat')
+            const description = await connection.createOffer ()
+            await connection.setLocalDescription (description)
+        }
 
-        setOfferButtonText ('copied')
+        await navigator.clipboard.writeText (`${
+            document.location.origin
+        }${
+            offer ? `/?offer=${ encodeURIComponent (btoa (offer)) }&answer=` : `/?offer=`
+        }${
+            encodeURIComponent (btoa (connection.localDescription.sdp))
+        }`)
 
-    }, [ connection ])
+        setCopied (true)
+
+    }, [ connection, copied ])
 
     useEffect (() => {
         void (async () => {
@@ -85,7 +107,20 @@ const App = () => {
                 }
 
                 try {
-                    setConnection (new RTCPeerConnection ({}))
+                    const connection = new RTCPeerConnection ({})
+
+                    setConnection (connection)
+
+                    if (!offer) return
+
+                    await connection.setRemoteDescription (
+                        new RTCSessionDescription ({
+                            type: answer ? 'answer' : 'offer',
+                            sdp: answer || offer }))
+
+                    await connection.setLocalDescription (
+                        answer ? new RTCSessionDescription ({ type: 'offer', sdp: offer })
+                               : await connection.createAnswer ())
 
                 } catch (e) {
                     console.error ('Connecton error:', e)
@@ -96,6 +131,8 @@ const App = () => {
             }
         }) ()
     }, [])
+
+    const buttonText = copied ? 'copied!' : offer ? 'get RSVP link' : 'get invite link'
 
     return (
         <div className='box'>
@@ -109,8 +146,8 @@ const App = () => {
                 <canvas ref={ canvas } id='canvas'/>
                 <img ref={ image } id='image' alt='Screen shot will appear in thin box.'/>
             </div>
-            <div>
-                <Button onClick={ makeAnOffer }>{ offerButtonText }</Button>
+            <div id='offer-controls'>
+                <Button className={ copied ? 'disabled' : '' } onClick={ getALink }>{ buttonText }</Button>
             </div>
         </div>
     )
