@@ -10,16 +10,27 @@ import './reset.css'
 import './index.css'
 
 const width = 320
+const Promised = () => {
+    let resolve, reject
+    const promise = new Promise ((res, rej) => { resolve = res; reject = rej })
+    return Object.assign (promise, { resolve, reject } as {
+        resolve: (_?: any) => undefined
+        reject: (_?: any) => undefined
+    })
+}
 
 const App = () => {
 
-    const video = useRef (null)
+    const userVideo = useRef (null)
+    const otherVideo = useRef (null)
     const image = useRef (null)
     const canvas = useRef (null)
 
-    const [streaming, setStreaming] = useState (false)
+    const [streaming, setStreaming] = useState ({ user: false, other: false })
     const [connection, setConnection] = useState (null)
     const [copied, setCopied] = useState (false)
+    const [answerError, setAnswerError] = useState<Error> (null)
+    const [enableExchange, setEnableExchange] = useState (false)
 
     const query = document.location.search
                                    .slice (1)
@@ -31,27 +42,28 @@ const App = () => {
     // window.history.replaceState (window.history.state, document.title, window.location.origin)
 
     const offer = 'offer' in query ? atob (decodeURIComponent (query.offer)) : undefined
-    const answer = 'answer' in query ? atob (decodeURIComponent (query.answer)) : undefined
-
     const takeAShot = useCallback ((e: React.MouseEvent) => {
 
         e.preventDefault ()
 
         const context = canvas.current.getContext ('2d')
 
-        context.drawImage (video.current, 0, 0, canvas.current.width, canvas.current.height)
+        context.drawImage (userVideo.current, 0, 0, canvas.current.width, canvas.current.height)
         image.current.setAttribute ('src', canvas.current.toDataURL ('image/png'))
 
-    }, [ canvas, video ])
+    }, [ canvas, userVideo ])
 
-    const onCanPlay = useCallback (() => {
+    const onCanPlay = useCallback ((e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
 
-        if (streaming === true) return
+        const which = e.currentTarget.id.split ('-')[0] as 'user' | 'other'
 
-        const height = video.current.videoHeight / (video.current.videoWidth / width)
+        if (streaming[which] === true) return
 
-        video.current.setAttribute ('width', width)
-        video.current.setAttribute ('height', height)
+        const video = e.currentTarget
+        const height = video.videoHeight / (video.videoWidth / width)
+
+        video.setAttribute ('width', width + 'px')
+        video.setAttribute ('height', height + 'px')
 
         canvas.current.setAttribute ('width', width)
         canvas.current.setAttribute ('height', height)
@@ -59,9 +71,9 @@ const App = () => {
               .getContext ('2d')
               .setTransform (-1, 0, 0, 1, canvas.current.width, 0)
 
-        setStreaming (true)
+        setStreaming ({ ...streaming, [which]: true })
 
-    }, [ canvas, video ])
+    }, [ canvas, userVideo ])
 
     const getALink = useCallback (async (e: React.MouseEvent) => {
 
@@ -69,19 +81,9 @@ const App = () => {
 
         if (copied) return
 
-        if (!offer){
-            connection.createDataChannel ('chat')
-            const description = await connection.createOffer ()
-            await connection.setLocalDescription (description)
-        }
-
-        await navigator.clipboard.writeText (`${
-            document.location.origin
-        }${
-            offer ? `/?offer=${ encodeURIComponent (btoa (offer)) }&answer=` : `/?offer=`
-        }${
-            encodeURIComponent (btoa (connection.localDescription.sdp))
-        }`)
+        await navigator.clipboard.writeText (
+            (offer ? `` : `${ document.location.origin }/?offer=`) +
+            encodeURIComponent (btoa (connection.localDescription.sdp)))
 
         setCopied (true)
 
@@ -90,10 +92,6 @@ const App = () => {
     useEffect (() => {
         void (async () => {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia ({ video: true, audio: false })
-                video.current.srcObject = stream
-                video.current.play ()
-
                 try {
                     const context = canvas.current.getContext ('2d')
 
@@ -111,16 +109,50 @@ const App = () => {
 
                     setConnection (connection)
 
-                    if (!offer) return
+                    const stream = await navigator.mediaDevices.getUserMedia ({ video: true, audio: false })
+                    userVideo.current.srcObject = stream
+                    userVideo.current.play ()
 
-                    await connection.setRemoteDescription (
-                        new RTCSessionDescription ({
-                            type: answer ? 'answer' : 'offer',
-                            sdp: answer || offer }))
+                    for (const track of stream.getTracks ()) connection.addTrack (track)
 
-                    await connection.setLocalDescription (
-                        answer ? new RTCSessionDescription ({ type: 'offer', sdp: offer })
-                               : await connection.createAnswer ())
+                    connection.ontrack = (e: RTCTrackEvent) => {
+                        let [stream] = e.streams
+                        if (!stream) {
+                            stream = new MediaStream ()
+                            stream.addTrack (e.track)
+                        }
+
+                        otherVideo.current.srcObject = stream
+                        otherVideo.current.play ()
+                    }
+
+                    connection.oniceconnectionstatechange = (e: Event) => {
+                        console.info ('Connection state:', connection.iceConnectionState)
+                    }
+
+                    if (offer) {
+                        await connection.setRemoteDescription (new RTCSessionDescription ({ type: 'offer', sdp: offer }))
+                        await connection.setLocalDescription (await connection.createAnswer ())
+                        connection.ondatachannel = (e: RTCDataChannelEvent) => {
+                            e.channel.onopen = () => console.log ('channel is open')
+                            e.channel.onerror = (e: RTCErrorEvent) => console.error ('data channel error:', e)
+                            e.channel.onmessage = (e: MessageEvent) => console.info ('message received', e.data)
+                        }
+
+                    } else {
+                        const channel = await connection.createDataChannel ('chat')
+                        channel.onopen = () => console.log ('chopen')
+                        channel.onerror = (e: RTCErrorEvent) => console.error ('cherror:', e)
+                        channel.onmessage = (e: MessageEvent) => console.info ('chmessage:', e.data)
+
+                        await connection.setLocalDescription (await connection.createOffer ())
+                    }
+
+                    const promise = Promised ()
+                    connection.onicecandidate = promise.resolve
+                    await promise
+
+                    setEnableExchange (true)
 
                 } catch (e) {
                     console.error ('Connecton error:', e)
@@ -132,22 +164,50 @@ const App = () => {
         }) ()
     }, [])
 
-    const buttonText = copied ? 'copied!' : offer ? 'get RSVP link' : 'get invite link'
+    const onAnswer = useCallback (async (e: React.ChangeEvent<HTMLInputElement>) => {
+
+        setAnswerError (null)
+
+        if (!e.target.value) return
+
+        try {
+            await connection.setRemoteDescription (new RTCSessionDescription ({
+                type: 'answer',
+                sdp: atob (decodeURIComponent (e.target.value))
+            }))
+
+        } catch (e) {
+            setAnswerError (e)
+        }
+
+    }, [ connection ])
+
+    const buttonText = copied ? 'copied!' : offer ? 'get RSVP' : 'get invite link'
 
     return (
         <div className='box'>
-            <div className='camera'>
-                <video ref={ video } id='video' onCanPlay={ onCanPlay }>
-                    Video stream not available
-                </video>
-                <Button onClick={ takeAShot }>Take a shot</Button>
+            <div className='chat'>
+                <video ref={ userVideo } id='user-video' onCanPlay={ onCanPlay }/>
+                <video ref={ otherVideo } id='other-video' onCanPlay={ onCanPlay } muted/>
             </div>
+            <Button onClick={ takeAShot }>Take a shot</Button>
             <div id='output'>
                 <canvas ref={ canvas } id='canvas'/>
                 <img ref={ image } id='image' alt='Screen shot will appear in thin box.'/>
             </div>
-            <div id='offer-controls'>
-                <Button className={ copied ? 'disabled' : '' } onClick={ getALink }>{ buttonText }</Button>
+            <Button className={ copied || !enableExchange ? 'disabled' : '' } onClick={ getALink }>{ buttonText }</Button>
+            <div>
+            {
+                copied && !offer ? (
+                    <input
+                        className={ 'answer-input' + (answerError ? ' error' : '') }
+                        type='text'
+                        placeholder='Paste answer here'
+                        onChange={ onAnswer }
+                    />
+                ) : null
+            }
+            { answerError ? <span className='anwer-error-text'>{ answerError.message }</span> : null }
             </div>
         </div>
     )
