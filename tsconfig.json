@@ -1,6 +1,11 @@
 {
     "compilerOptions": {
         "baseUrl": ".",
+        "paths": {
+            "~*": ["./src/*"],
+            "Common": ["./src/Common"],
+            "Common/*": ["./src/Common/*"]
+        },
         "jsx": "react",
         "allowSyntheticDefaultImports": true,
         "allowJs": false,
