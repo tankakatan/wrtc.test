@@ -2,9 +2,9 @@ export { default as Button } from './Button'
 
 export const Promised = <T>() => {
     let resolve, reject
-    const promise = new Promise ((res, rej) => { resolve = res; reject = rej })
+    const promise = new Promise<T> ((res, rej) => { resolve = res; reject = rej })
 
-    return Object.assign (promise, { resolve, reject } as {
+    return Object.assign (promise as Promise<T> , { resolve, reject } as {
         resolve: (_?: T) => undefined,
         reject: (_?: string | Error) => undefined,
     })

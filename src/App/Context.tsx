@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import WebTorrent from 'webtorrent'
 import { Promised } from 'Common'
 
 const AppContext = createContext ({
@@ -39,9 +40,30 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
         if (copied) return
 
+        // https://gist.github.com/loon3/6730c3187d5b84a6cbbb
+
+        const session = connection.localDescription
+        const filename = 'session_description.json'
+        const blob = new Blob ([ JSON.stringify (session) ], { type: 'application/json' })
+        const client = new WebTorrent ()
+        const torrentPromise = Promised<WebTorrent.Torrent> ()
+
+        client.seed (blob as File, { name: filename }, torrent => torrentPromise.resolve (torrent))
+        client.on ('error', error => console.error ('Torrent client error:', error))
+
+        const torrent: WebTorrent.Torrent = await torrentPromise
+        console.log ('A torrent:', torrent)
+
+        torrent.on ('error', error => console.error ('Torrent error:', error))
+        torrent.on ('wire', wire => {
+            console.log ('Wire:', wire)
+        })
+
         await navigator.clipboard.writeText (
-            (offer ? '' : `${ document.location.origin }/?offer=`) +
-            encodeURIComponent (btoa (connection.localDescription.sdp)))
+            `${ document.location.origin }/?offer=${ encodeURIComponent (btoa (torrent.magnetURI)) }`
+        )
+            // (offer ? '' : `${ document.location.origin }/?offer=`) +
+            // encodeURIComponent (btoa (connection.localDescription.sdp)))
 
         setCopied (true)
 
@@ -74,6 +96,28 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
                 }
 
                 if (offer) {
+
+                    console.log ('Offer:', offer)
+
+                    const client = new WebTorrent ()
+                    const torrentPromise = Promised<WebTorrent.Torrent> ()
+
+                    console.log ('Torrent client:', client)
+
+                    client.add (offer, torrent => (console.log ('T:', torrent), torrentPromise.resolve (torrent)))
+                    client.on ('error', error => console.error ('Torrent client error:', error))
+                    client.on ('torrent', torrent => console.info ('Torrent:', torrent))
+
+                    const torrent = await torrentPromise
+
+                    console.log ('Torrent:', torrent)
+
+                    torrent.on ('wire', wire => {
+                        console.log ('Wire:', wire)
+                    })
+
+                    return
+
                     await connection.setRemoteDescription (new RTCSessionDescription ({ type: 'offer', sdp: offer }))
                     await connection.setLocalDescription (await connection.createAnswer ())
                     connection.ondatachannel = (e: RTCDataChannelEvent) => {
