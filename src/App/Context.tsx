@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import WebTorrent from 'webtorrent'
 import { Promised } from 'Common'
+import content = require
 
 const AppContext = createContext ({
     offer: undefined as string,
@@ -33,7 +34,6 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     // window.history.replaceState (window.history.state, document.title, window.location.origin)
 
     const offer = 'offer' in query ? atob (decodeURIComponent (query.offer)) : undefined
-
     const getSdp = useCallback (async (e: React.MouseEvent) => {
 
         e.preventDefault ()
@@ -42,9 +42,8 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
         // https://gist.github.com/loon3/6730c3187d5b84a6cbbb
 
-        const session = connection.localDescription
         const filename = 'session_description.json'
-        const blob = new Blob ([ JSON.stringify (session) ], { type: 'application/json' })
+        const blob = new Blob ([ JSON.stringify (content) ], { type: 'application/json' })
         const client = new WebTorrent ()
         const torrentPromise = Promised<WebTorrent.Torrent> ()
 
@@ -52,12 +51,19 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
         client.on ('error', error => console.error ('Torrent client error:', error))
 
         const torrent: WebTorrent.Torrent = await torrentPromise
-        console.log ('A torrent:', torrent)
+        console.log ('A torrent:', torrent.infoHash)
+        // client.add (torrent.infoHash, (torrent) => {
+        //     console.log ('added torrent')
+        //     torrent.on ('wire', (wire) => {
+        //         console.log ('Wire #2', wire)
+        //     })
+        // })
 
         torrent.on ('error', error => console.error ('Torrent error:', error))
         torrent.on ('wire', wire => {
             console.log ('Wire:', wire)
         })
+        torrent.on
 
         await navigator.clipboard.writeText (
             `${ document.location.origin }/?offer=${ encodeURIComponent (btoa (torrent.magnetURI)) }`
