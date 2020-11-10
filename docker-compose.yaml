@@ -1,0 +1,5 @@
+version: '3'
+services:
+  coturn:
+    image: instrumentisto/coturn
+    network_mode: "host"
