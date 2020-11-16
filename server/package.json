@@ -1,0 +1,17 @@
+{
+  "name": "chat-server",
+  "version": "1.0.0",
+  "description": "WS server for webrtc connection handshake",
+  "main": "build/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "takatan",
+  "license": "ISC",
+  "dependencies": {
+    "ws": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^7.4.0"
+  }
+}
