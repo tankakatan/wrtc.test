@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import WebTorrent from 'webtorrent'
 import { Promised } from 'Common'
-import content = require
+import Fp from '@fingerprintjs/fingerprintjs'
 
 const AppContext = createContext ({
     offer: undefined as string,
@@ -22,6 +21,7 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     const [answerError, setAnswerError] = useState<Error> (undefined)
     const [ready, setReady] = useState (false)
     const [streams, setStreams] = useState<{ [key: string]: MediaStream }> ({})
+    const [offering, setOffering] = useState<boolean> (false)
 
     const query = document.location.search
                                    .slice (1)
@@ -40,37 +40,6 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
         if (copied) return
 
-        // https://gist.github.com/loon3/6730c3187d5b84a6cbbb
-
-        const filename = 'session_description.json'
-        const blob = new Blob ([ JSON.stringify (content) ], { type: 'application/json' })
-        const client = new WebTorrent ()
-        const torrentPromise = Promised<WebTorrent.Torrent> ()
-
-        client.seed (blob as File, { name: filename }, torrent => torrentPromise.resolve (torrent))
-        client.on ('error', error => console.error ('Torrent client error:', error))
-
-        const torrent: WebTorrent.Torrent = await torrentPromise
-        console.log ('A torrent:', torrent.infoHash)
-        // client.add (torrent.infoHash, (torrent) => {
-        //     console.log ('added torrent')
-        //     torrent.on ('wire', (wire) => {
-        //         console.log ('Wire #2', wire)
-        //     })
-        // })
-
-        torrent.on ('error', error => console.error ('Torrent error:', error))
-        torrent.on ('wire', wire => {
-            console.log ('Wire:', wire)
-        })
-        torrent.on
-
-        await navigator.clipboard.writeText (
-            `${ document.location.origin }/?offer=${ encodeURIComponent (btoa (torrent.magnetURI)) }`
-        )
-            // (offer ? '' : `${ document.location.origin }/?offer=`) +
-            // encodeURIComponent (btoa (connection.localDescription.sdp)))
-
         setCopied (true)
 
     }, [connection, copied])
@@ -78,7 +47,10 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     useEffect (() => {
         void (async () => {
             try {
-                const connection = new RTCPeerConnection ({})
+                const connection = new RTCPeerConnection ({ iceServers: [
+                    { urls: 'stun:turn.neodequate.com' }
+                ] })
+                // const signaler = new SignalingChannel ()
                 const stream = await navigator.mediaDevices.getUserMedia ({ video: true, audio: false })
 
                 for (const track of stream.getTracks ()) {
@@ -98,29 +70,73 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
                 }
 
                 connection.oniceconnectionstatechange = () => {
-                    console.info ('Connection state:', connection.iceConnectionState)
+                    if (connection.iceConnectionState === 'failed') {
+                        connection.restartIce ()
+                    }
                 }
 
+                connection.onnegotiationneeded = async () => {
+                    try {
+                        setOffering (true)
+                        await connection.setLocalDescription ()
+                        const fp = await (await Fp.load ()).get ()
+
+                        const socket = new WebSocket ('ws://localhost:5976')
+                        socket.onopen = () => {
+                            socket.send (JSON.stringify (fp))
+                        }
+                        // signaler.send ({ description: connection.localDescription })
+                    } catch (e) {
+                        console.error ('Description sending error:', e)
+                    } finally {
+                        setOffering (false)
+                    }
+                }
+
+                connection.onicecandidate = async ({ candidate, ...props }) => {
+                    console.info ('A candidate:', candidate, props)
+                    if (candidate) {
+                        try {
+                            await connection.addIceCandidate (candidate)
+                        } catch (e) {
+                            console.error ('Candidate error:', e)
+                        }
+                    }
+                    // signaler.send ({ candidate })
+                }
+
+                // signaler.onmessage = async ({ data: { candidate, description }}) => {
+
+                //     if (candidate) {
+                //         try {
+                //             await connection.addIceCandidate (candidate)
+                //         } catch (e) {
+                //             console.error ('Candidate adding error:', e)
+                //         } finally {
+                //             return
+                //         }
+                //     }
+
+                //     if (!description) return
+
+                //     if (description.type === 'offer' && connection.signalingState === 'stable') {
+                //         return // offer collision
+                //     }
+
+                //     try {
+                //         await connection.setRemoteDescription (description)
+
+                //         if (description.type === 'offer') {
+                //             await connection.setLocalDescription () // answer
+                //             signaler.send ({ description: connection.localDescription })
+                //         }
+
+                //     } catch (e) {
+                //         console.error ('Remote description adding error:', e)
+                //     }
+                // }
+
                 if (offer) {
-
-                    console.log ('Offer:', offer)
-
-                    const client = new WebTorrent ()
-                    const torrentPromise = Promised<WebTorrent.Torrent> ()
-
-                    console.log ('Torrent client:', client)
-
-                    client.add (offer, torrent => (console.log ('T:', torrent), torrentPromise.resolve (torrent)))
-                    client.on ('error', error => console.error ('Torrent client error:', error))
-                    client.on ('torrent', torrent => console.info ('Torrent:', torrent))
-
-                    const torrent = await torrentPromise
-
-                    console.log ('Torrent:', torrent)
-
-                    torrent.on ('wire', wire => {
-                        console.log ('Wire:', wire)
-                    })
 
                     return
 
@@ -133,17 +149,17 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
                     }
 
                 } else {
-                    const channel = connection.createDataChannel ('chat')
-                    channel.onopen = () => console.log ('chopen')
-                    channel.onerror = (e: RTCErrorEvent) => console.error ('cherror:', e)
-                    channel.onmessage = (e: MessageEvent) => console.info ('chmessage:', e.data)
+                    // const channel = connection.createDataChannel ('chat')
+                    // channel.onopen = () => console.log ('chopen')
+                    // channel.onerror = (e: RTCErrorEvent) => console.error ('cherror:', e)
+                    // channel.onmessage = (e: MessageEvent) => console.info ('chmessage:', e.data)
 
-                    await connection.setLocalDescription (await connection.createOffer ())
+                    // await connection.setLocalDescription (await connection.createOffer ())
                 }
 
-                const promise = Promised ()
-                connection.onicecandidate = promise.resolve
-                await promise
+                // const promise = Promised ()
+                // connection.onicecandidate = promise.resolve
+                // await promise
 
                 setConnection (connection)
                 setStreams (streams => ({ ...streams, [stream.id]: stream }))

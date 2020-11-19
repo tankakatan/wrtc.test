@@ -14,17 +14,16 @@
   "author": "@neodequate",
   "license": "ISC",
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^3.0.3",
     "classnames": "^2.2.6",
     "react": "^17.0.1",
-    "react-dom": "^17.0.1",
-    "webtorrent": "^0.109.2"
+    "react-dom": "^17.0.1"
   },
   "devDependencies": {
     "@types/classnames": "^2.2.10",
     "@types/node": "^14.14.2",
     "@types/react": "^16.9.53",
     "@types/react-dom": "^16.9.8",
-    "@types/webtorrent": "^0.109.0",
     "parcel": "^1.12.4",
     "typescript": "^4.0.3"
   }
