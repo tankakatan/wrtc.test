@@ -1,5 +1,11 @@
 body * {
     font-family: sans-serif;
+    --main-color: #249620;
+    --alt-color: #3280D0;
+    --main-text-color: #323232;
+    --alt-text-color: #bbb;
+    --error-color: #FF4D4D;
+    --inactive-color: #aaa;
 }
 
 canvas {
