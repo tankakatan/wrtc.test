@@ -17,7 +17,7 @@ export function useContactsContext () {
     return useContext (ContactsContext)
 }
 
-export default function ProvideContactsContext () {
+export default function ProvideContactsContext ({ children = null }: { children: React.ReactNode }) {
     const [contacts, setContacts] = useState<Contact[]> ([])
     const [self, setSelf] = useState<Contact> ({
         id: undefined,
@@ -53,5 +53,5 @@ export default function ProvideContactsContext () {
         }) ()
     }, [ self.id ])
 
-    return <ContactsContext.Provider value={{ self, contacts }}></ContactsContext.Provider>
+    return <ContactsContext.Provider value={{ self, contacts }}>{ children }</ContactsContext.Provider>
 }

@@ -65,6 +65,8 @@ const api = new Proxy ({}, {
                 }
 
                 ws.onclose = (e: CloseEvent) => {
+                    if (!message) return
+
                     if (isWsError (e)) {
                         message.reject (parseWsError(e))
                     } else {

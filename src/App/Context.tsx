@@ -194,12 +194,12 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     // }, [ connection ])
 
     const context = {
-        offer,
+        offer: null as string,
         answerError,
-        handleAnswer,
+        handleAnswer: () => {},
         ready,
         copied,
-        getSdp,
+        getSdp: () => {},
         streams,
     }
 
