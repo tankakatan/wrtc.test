@@ -1,4 +1,5 @@
 export { default as Button } from './Button'
+export { default as Video } from './Video'
 
 export const Promised = <T>() => {
     let resolve, reject
