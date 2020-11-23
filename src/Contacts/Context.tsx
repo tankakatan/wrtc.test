@@ -32,17 +32,17 @@ export default function ProvideContactsContext ({ children = null }: { children:
                 setSelf (self => ({ ...self, id }))
 
             } else {
-                const next = await api.contacts<{}, Contact> ({ id: self.id, timeout: 3600000 })
+                const next = await api.register<{ id: string }, Contact> ({ id: self.id }, { timeout: 3600000 })
 
                 while (true) {
                     try {
-                        const { data: contacts, done } = await next ()
+                        const { data, done, error } = await next ()
 
-                        if (done) {
-                            break
-                        }
+                        if (error) throw error
+                        if (done) break
 
-                        setContacts (contacts)
+                        console.log ({ data, done, error })
+                        setContacts (data)
 
                     } catch (e) {
                         console.error (e)

@@ -26,24 +26,24 @@ const isWsError = (e: CloseEvent) => e.code !== 1000
 
 class WsTimeoutError extends Error {}
 
-type WsEndpointParameters<Request> = { id: string, retries?: number, timeout?: number } & Request
-type WsEndpointResponse<Response> = { data: Response[], done: boolean }
+type WsConnectionOptions = { retries?: number, timeout?: number }
+type WsEndpointResponse<Response> = { data: Response[], done: boolean, error?: Error }
 
 const api = new Proxy ({}, {
-    get (_, endpoint: string) {
-        return function <Request, Response>({ id, retries = 3, timeout = 10000, ...args }: { id: string, retries: number, timeout: number } & Request) {
+    get (_, type: string) {
+        return function <Request, Response>(query?: Request, { retries = 3, timeout = 10000 } = {} as WsConnectionOptions) {
             let ws: WebSocket, message: PromisedType<WsEndpointResponse<Response>>
 
             const refresh = () => message = Promised ()
+            const disconnected = () => !ws || (ws.readyState === ws.CLOSED) || (ws.readyState === ws.CLOSING)
+
             const send = (msg: any) => {
                 if (disconnected ()) return
 
                 ws.send (msg && typeof msg === 'object' ? JSON.stringify (msg) : msg)
             }
 
-            const disconnected = () => !ws || (ws.readyState === ws.CLOSED) || (ws.readyState === ws.CLOSING)
             const cancel = (code?: number, reason?: string) => {
-
                 if (!disconnected ()) {
                     ws.removeEventListener ('open', ws.onopen)
                     ws.removeEventListener ('close', ws.onclose)
@@ -55,11 +55,11 @@ const api = new Proxy ({}, {
                 ws = undefined
             }
 
-            const connect = () => new Promise ((resolve, reject) => {
-                ws = new WebSocket (`ws://${ host }:${ port }/${ endpoint }`)
+            const connect = () => new Promise ((resolve) => {
+                ws = new WebSocket (`ws://${ host }:${ port }`)
 
                 ws.onopen = e => {
-                    send ({ id })
+                    send ({ type, query })
                     refresh ()
                     resolve (e)
                 }
@@ -68,7 +68,7 @@ const api = new Proxy ({}, {
                     if (!message) return
 
                     if (isWsError (e)) {
-                        message.reject (parseWsError(e))
+                        message.resolve ({ data: undefined, done: true, error: new Error (parseWsError (e)) })
                     } else {
                         message.resolve ({ data: undefined, done: true })
                     }
@@ -78,8 +78,7 @@ const api = new Proxy ({}, {
                 ws.onmessage = msg => { message.resolve (JSON.parse (msg.data)); refresh () }
             })
 
-            const waitForTimeout = () => new Promise ((_, reject) => {
-
+            const countdown = () => new Promise ((_, reject) => {
                 const timeoutId = setTimeout (() => {
 
                     clearTimeout (timeoutId)
@@ -90,20 +89,18 @@ const api = new Proxy ({}, {
             })
 
             const next = async () => {
-
-                let attempts = retries
+                let attempts = Math.max (retries, 0)
 
                 while (true) {
-
                     if (disconnected ()) return
 
                     try {
-
-                        return await Promise.race ([ message, waitForTimeout () ])
+                        return await Promise.race ([ message, countdown () ])
 
                     } catch (e) {
-
-                        if (!(e instanceof WsTimeoutError) || !(attempts--)) return Promise.reject (e)
+                        if (!(e instanceof WsTimeoutError) || !(attempts--)) {
+                            return Promise.resolve ({ data: undefined, done: true, error: e })
+                        }
 
                         cancel ()
                         await connect ()
@@ -115,7 +112,7 @@ const api = new Proxy ({}, {
         }
     }
 }) as {
-    [key: string]: <Request, Response>(args: WsEndpointParameters<Request>) => ((() => Promise<WsEndpointResponse<Response>>) & {
+    [key: string]: <Request, Response>(query: Request, options: WsConnectionOptions) => ((() => Promise<WsEndpointResponse<Response>>) & {
         cancel: (code?: number, reason?: string) => void,
         send: (msg: any) => void,
     })
