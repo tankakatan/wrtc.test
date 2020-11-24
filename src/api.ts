@@ -1,8 +1,14 @@
 import { Promised, PromisedType } from 'Common'
 
+type WsConnectionOptions = { retries?: number, timeout?: number }
+type WsEndpointResponse<Response> = { data: Response, error?: string, done: boolean }
+
+class WsTimeoutError extends Error {}
+
 const host = 'localhost'
 const port = '5976'
 
+const isWsError = (e: CloseEvent) => e.code !== 1000
 const parseWsError = (e: CloseEvent) => {
     switch (e.code) {
         case 1000: return 'Normal closure, meaning that the purpose for which the connection was established has been fulfilled.'
@@ -22,100 +28,108 @@ const parseWsError = (e: CloseEvent) => {
     }
 }
 
-const isWsError = (e: CloseEvent) => e.code !== 1000
+let ws = undefined as WebSocket & { sendMessage: (msg: any) => void, closeSocket: () => void }
 
-class WsTimeoutError extends Error {}
+const disconnected = (ws: WebSocket) => !ws || (ws.readyState === ws.CLOSED) || (ws.readyState === ws.CLOSING)
+const getSocket = () => {
+    if (ws && !disconnected (ws)) {
+        return ws
+    }
 
-type WsConnectionOptions = { retries?: number, timeout?: number }
-type WsEndpointResponse<Response> = { data: Response[], done: boolean, error?: Error }
+    const sendMessage = (msg: any) => {
+        if (!disconnected (ws)) {
+            ws.send (msg && typeof msg === 'object' ? JSON.stringify (msg) : msg)
+        }
+    }
+
+    const closeSocket = (code?: number, reason?: string) => {
+        if (!disconnected (ws)) {
+            ws.removeEventListener ('open', ws.onopen)
+            ws.removeEventListener ('close', ws.onclose)
+            ws.removeEventListener ('error', ws.onerror)
+            ws.removeEventListener ('message', ws.onmessage)
+            ws.close (code, reason)
+        }
+
+        ws = undefined
+    }
+
+    return new Promise ((resolve, reject) => {
+        ws = Object.assign (new WebSocket (`ws://${ host }:${ port }`), { sendMessage, closeSocket })
+
+        ws.onopen = () => resolve (ws)
+        ws.onerror = reject
+    }) as Promise<typeof ws>
+}
+
+const countdown = (timeout: number) => new Promise ((_, reject) => {
+    const timeoutId = setTimeout (() => {
+        clearTimeout (timeoutId)
+        reject (new WsTimeoutError ('Web Socket Connection Timeout'))
+    }, timeout)
+})
 
 const api = new Proxy ({}, {
     get (_, type: string) {
-        return function <Request, Response>(query?: Request, { retries = 3, timeout = 10000 } = {} as WsConnectionOptions) {
-            let ws: WebSocket, message: PromisedType<WsEndpointResponse<Response>>
+        return async function <Request, Response>(data?: Request, { retries = 3, timeout = 10000 } = {} as WsConnectionOptions) {
+            let ws = await getSocket ()
+            let message = undefined as PromisedType<WsEndpointResponse<Response>>
 
             const refresh = () => message = Promised ()
-            const disconnected = () => !ws || (ws.readyState === ws.CLOSED) || (ws.readyState === ws.CLOSING)
 
-            const send = (msg: any) => {
-                if (disconnected ()) return
+            ws.addEventListener ('close', (e: CloseEvent) => {
+                if (!message) return
 
-                ws.send (msg && typeof msg === 'object' ? JSON.stringify (msg) : msg)
-            }
-
-            const cancel = (code?: number, reason?: string) => {
-                if (!disconnected ()) {
-                    ws.removeEventListener ('open', ws.onopen)
-                    ws.removeEventListener ('close', ws.onclose)
-                    ws.removeEventListener ('error', ws.onerror)
-                    ws.removeEventListener ('message', ws.onmessage)
-                    ws.close (code, reason)
+                if (isWsError (e)) {
+                    message.resolve ({ data: undefined, error: parseWsError (e), done: false })
+                } else {
+                    message.resolve ({ data: undefined, done: true, error: undefined })
                 }
-
-                ws = undefined
-            }
-
-            const connect = () => new Promise ((resolve) => {
-                ws = new WebSocket (`ws://${ host }:${ port }`)
-
-                ws.onopen = e => {
-                    send ({ type, query })
-                    refresh ()
-                    resolve (e)
-                }
-
-                ws.onclose = (e: CloseEvent) => {
-                    if (!message) return
-
-                    if (isWsError (e)) {
-                        message.resolve ({ data: undefined, done: true, error: new Error (parseWsError (e)) })
-                    } else {
-                        message.resolve ({ data: undefined, done: true })
-                    }
-                }
-
-                ws.onerror = () => console.error ('Web Socket error')
-                ws.onmessage = msg => { message.resolve (JSON.parse (msg.data)); refresh () }
             })
 
-            const countdown = () => new Promise ((_, reject) => {
-                const timeoutId = setTimeout (() => {
+            ws.addEventListener ('message', (msg: MessageEvent) => {
+                const data = JSON.parse (msg.data)
 
-                    clearTimeout (timeoutId)
-
-                    reject (new WsTimeoutError ('Web Socket Connection Timeout'))
-
-                }, timeout)
+                if (data.type === type) {
+                    message.resolve (data)
+                    refresh ()
+                }
             })
 
             const next = async () => {
                 let attempts = Math.max (retries, 0)
 
                 while (true) {
-                    if (disconnected ()) return
+                    if (disconnected (ws)) throw new Error ('Socket is closed')
 
                     try {
-                        return await Promise.race ([ message, countdown () ])
+                        return await Promise.race ([ message, countdown (timeout) ])
 
                     } catch (e) {
                         if (!(e instanceof WsTimeoutError) || !(attempts--)) {
                             return Promise.resolve ({ data: undefined, done: true, error: e })
                         }
 
-                        cancel ()
-                        await connect ()
+                        ws.closeSocket ()
+                        ws = await getSocket ()
                     }
                 }
             }
 
-            return connect ().then (() => Object.assign (next, { send, cancel }))
+            ws.sendMessage ({ type, ...data })
+
+            refresh ()
+
+            return Object.assign (next, { send: ws.sendMessage.bind (ws), cancel: ws.closeSocket.bind (ws) })
         }
     }
 }) as {
-    [key: string]: <Request, Response>(query: Request, options: WsConnectionOptions) => ((() => Promise<WsEndpointResponse<Response>>) & {
-        cancel: (code?: number, reason?: string) => void,
-        send: (msg: any) => void,
-    })
+    [key: string]: <Request, Response>(data: Request, options: WsConnectionOptions) => (
+        (() => Promise<WsEndpointResponse<Response>>) & {
+            cancel: (code?: number, reason?: string) => void,
+            send: (msg: any) => void,
+        }
+    )
 }
 
 export default api

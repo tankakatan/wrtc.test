@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import Fp from '@fingerprintjs/fingerprintjs'
 import api from '~/api'
 import { useAppContext } from '~App/Context'
+import { User } from 'Common'
 
 type Contact = {
     id: string,
@@ -29,23 +30,27 @@ export default function ProvideContactsContext ({ children = null }: { children:
                 setUser (user => ({ ...user, id }))
 
             } else {
-                const updateContacts = await api.register<{ id: string }, Contact> ({ id: user.id }, { timeout: 3600000 })
+                const next = await api.register<{ from: string, data: User }, { register: Contact[] }> (
+                    { from: user.id, data: user },
+                    { timeout: 3600000 }
+                )
+
                 setShouldStop (false)
 
                 while (true) {
                     if (shouldStop) break
 
                     try {
-                        const { data, done, error } = await updateContacts ()
+                        const { data, error, done } = await next ()
 
-                        if (error) throw error
+                        if (error) throw new Error (error)
                         if (done) break
 
-                        setContacts (data)
+                        setContacts (data.register)
 
                     } catch (e) {
                         console.error (e)
-                        updateContacts.cancel ()
+                        next.cancel ()
                         break
                     }
                 }
