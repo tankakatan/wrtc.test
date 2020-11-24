@@ -20,7 +20,7 @@ export function useContactsContext () {
 
 export default function ProvideContactsContext ({ children = null }: { children: React.ReactNode }) {
     const [ contacts, setContacts ] = useState<Contact[]> ([])
-    const [ shouldStop, setShouldStop ] = useState<boolean> (false)
+    const [ shouldStop, setShouldStop ] = useState<boolean> (false) // To do: this is a boolshit
     const { user, setUser } = useAppContext ()
 
     useEffect (() => {

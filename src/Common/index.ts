@@ -27,3 +27,5 @@ export type ChatMessage = {
     recipient: User,
     media?: null, // temp
 }
+
+export type Message = { from: string, to: string, type: string, data: any, error?: string };

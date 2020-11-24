@@ -1,17 +1,15 @@
-import React, { createContext, useContext, useState } from 'react'
-
-type User = {
-    id: string,
-    name?: string,
-    status: 'online' | 'offline' | 'error',
-    error?: Error,
-}
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import adapter from 'webrtc-adapter'
+import { PromisedType, User, ChatMessage, Message } from 'Common'
+import { requestChat, acceptChat } from '~/tunnel'
+import api from '~api'
 
 const AppContext = createContext ({
     user: undefined as User,
     setUser: (() => {}) as (user: User | ((user: User) => User)) => void,
-    recipient: undefined as User,
-    setRecipient: (() => {}) as (user: User | ((user: User) => User)) => void,
+    chat: undefined as PromisedType<ChatMessage[]>,
+    startChat: (() => {}) as (recipient: User) => void,
+    // awaitForChat: (() => {}) as (message: Message) => void,
 })
 
 export const useAppContext = () => useContext (AppContext)
@@ -20,6 +18,39 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
     const [ user, setUser ] = useState<User> (undefined)
     const [ recipient, setRecipient ] = useState<User> (undefined)
+
+    const startChat = useCallback (async (recipient) => {
+        console.log ('Starting chat with:', recipient)
+        setRecipient (recipient)
+        await requestChat (user, recipient)
+    }, [ user ])
+
+    const awaitForChat = useCallback (async () => {
+        if (!user) return
+
+        const nextOffer = await api.sdp<undefined, RTCSessionDescription> (undefined)
+
+        while (true) {
+            try {
+                const { error, done, ...message } = await nextOffer ()
+
+                console.info ('Offer message received:', { error, done, ...message })
+
+                if (error) throw error
+                if (done) break
+                if (message.data && message.data.type !== 'offer') continue
+
+                setRecipient ({ id: message.from, status: 'online' })
+                acceptChat (user, message as Message)
+
+            } catch (e) {
+                console.error ('Chat offer error:', e)
+                break
+            }
+        }
+    }, [ user ])
+
+    useEffect (() => { awaitForChat () }, [ awaitForChat ])
 
     // const query = document.location.search
     //                                .slice (1)
@@ -194,8 +225,8 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     const context = {
         user,
         setUser,
-        recipient,
-        setRecipient,
+        chat: undefined as PromisedType<ChatMessage[]>,
+        startChat,
     }
 
     return (<AppContext.Provider value={ context }>{ children }</AppContext.Provider>)

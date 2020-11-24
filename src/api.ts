@@ -1,7 +1,7 @@
 import { Promised, PromisedType } from 'Common'
 
 type WsConnectionOptions = { retries?: number, timeout?: number }
-type WsEndpointResponse<Response> = { data: Response, error?: string, done: boolean }
+type WsEndpointResponse<Response> = { from?: string, to?: string, type?: string, data: Response, error?: string, done: boolean }
 
 class WsTimeoutError extends Error {}
 
@@ -71,7 +71,7 @@ const countdown = (timeout: number) => new Promise ((_, reject) => {
 
 const api = new Proxy ({}, {
     get (_, type: string) {
-        return async function <Request, Response>(data?: Request, { retries = 3, timeout = 10000 } = {} as WsConnectionOptions) {
+        return async function <Request, Response>(data?: Request, { retries = 3, timeout = 3600000 } = {} as WsConnectionOptions | undefined) {
             let ws = await getSocket ()
             let message = undefined as PromisedType<WsEndpointResponse<Response>>
 
@@ -116,7 +116,9 @@ const api = new Proxy ({}, {
                 }
             }
 
-            ws.sendMessage ({ type, ...data })
+            if (data) {
+                ws.sendMessage ({ type, ...data })
+            }
 
             refresh ()
 
@@ -124,7 +126,7 @@ const api = new Proxy ({}, {
         }
     }
 }) as {
-    [key: string]: <Request, Response>(data: Request, options: WsConnectionOptions) => (
+    [key: string]: <Request, Response>(data: Request, options?: WsConnectionOptions) => (
         (() => Promise<WsEndpointResponse<Response>>) & {
             cancel: (code?: number, reason?: string) => void,
             send: (msg: any) => void,
