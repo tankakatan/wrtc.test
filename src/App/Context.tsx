@@ -1,35 +1,33 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { Promised } from 'Common'
-import Fp from '@fingerprintjs/fingerprintjs'
+import React, { createContext, useContext, useState } from 'react'
+
+type User = {
+    id: string,
+    name?: string,
+    status: 'online' | 'offline' | 'error',
+    error?: Error,
+}
 
 const AppContext = createContext ({
-    offer: undefined as string,
-    answerError: undefined as Error,
-    copied: false,
-    ready: false,
-    getSdp: (() => {}) as (_: React.MouseEvent) => void,
-    streams: {} as { [key: string]: MediaStream },
-    handleAnswer: (() => {}) as (_: React.ChangeEvent<HTMLInputElement>) => void,
+    user: undefined as User,
+    setUser: (() => {}) as (user: User | ((user: User) => User)) => void,
+    recipient: undefined as User,
+    setRecipient: (() => {}) as (user: User | ((user: User) => User)) => void,
 })
 
 export const useAppContext = () => useContext (AppContext)
 
 export const ProvideAppContext = ({ children = undefined as React.ReactNode }) => {
 
-    const [connection, setConnection] = useState<RTCPeerConnection> (null)
-    const [copied, setCopied] = useState (false)
-    const [answerError, setAnswerError] = useState<Error> (undefined)
-    const [ready, setReady] = useState (false)
-    const [streams, setStreams] = useState<{ [key: string]: MediaStream }> ({})
-    const [offering, setOffering] = useState<boolean> (false)
+    const [ user, setUser ] = useState<User> (undefined)
+    const [ recipient, setRecipient ] = useState<User> (undefined)
 
-    const query = document.location.search
-                                   .slice (1)
-                                   .split ('&')
-                                   .map (str => str.split ('='))
-                                   .reduce (
-                                       (q, p: [string, string]) => ({ ...q, [p[0]]: p[1] }),
-                                       {} as { offer: string, answer: string })
+    // const query = document.location.search
+    //                                .slice (1)
+    //                                .split ('&')
+    //                                .map (str => str.split ('='))
+    //                                .reduce (
+    //                                    (q, p: [string, string]) => ({ ...q, [p[0]]: p[1] }),
+    //                                    {} as { offer: string, answer: string })
 
     // window.history.replaceState (window.history.state, document.title, window.location.origin)
 
@@ -194,13 +192,10 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     // }, [ connection ])
 
     const context = {
-        offer: null as string,
-        answerError,
-        handleAnswer: () => {},
-        ready,
-        copied,
-        getSdp: () => {},
-        streams,
+        user,
+        setUser,
+        recipient,
+        setRecipient,
     }
 
     return (<AppContext.Provider value={ context }>{ children }</AppContext.Provider>)
