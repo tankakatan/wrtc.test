@@ -3,7 +3,7 @@ import { useAppContext } from '~/App/Context'
 import ProvideContactsContext, { useContactsContext } from './Context'
 import './index.css'
 
-function ContactList () {
+function Contacts () {
     const { user, startChat } = useAppContext ()
     const { contacts } = useContactsContext ()
 
@@ -20,6 +20,6 @@ function ContactList () {
     )
 }
 
-export default function Contacts (): React.ReactElement {
-    return <ProvideContactsContext><ContactList/></ProvideContactsContext>
+export default function (): React.ReactElement {
+    return <ProvideContactsContext><Contacts /></ProvideContactsContext>
 }

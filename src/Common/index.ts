@@ -28,4 +28,10 @@ export type ChatMessage = {
     media?: null, // temp
 }
 
+export type ChatController = {
+    message: () => Promise<{ data: ChatMessage, done: boolean }>,
+    send: (message: string) => ChatMessage,
+    end: () => void,
+}
+
 export type Message = { from: string, to: string, type: string, data: any, error?: string };

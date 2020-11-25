@@ -1,4 +1,4 @@
-import { User, Message, Promised, PromisedType, ChatMessage } from 'Common'
+import { User, Message, Promised, PromisedType, ChatMessage, ChatController } from 'Common'
 import api from '~/api'
 
 const host = 'turn.neodequate.com'
@@ -46,13 +46,16 @@ async function Tunnel (from: string, to: string) {
     return connection
 }
 
-async function Chat (channel: RTCDataChannel, sender: User, recipient: User) {
+async function Chat (channel: RTCDataChannel, sender: User, recipient: User): Promise<ChatController> {
     let message = undefined as PromisedType<{ data: ChatMessage, done: boolean }>
 
     const refresh = () => message = Promised ()
-    const send = (message: string) => channel.send (
-        JSON.stringify ({ timestamp: Date.now (), message, sender, recipient } as ChatMessage)
-    )
+    const send = (message: string) => {
+        const chatMessage = { timestamp: Date.now (), message, sender, recipient } as ChatMessage
+        channel.send (JSON.stringify (chatMessage))
+
+        return chatMessage
+    }
 
     const end = () => channel.close ()
 
@@ -76,7 +79,7 @@ async function Chat (channel: RTCDataChannel, sender: User, recipient: User) {
         refresh ()
     }
 
-    return { message, send, end }
+    return { message: () => message, send, end }
 }
 
 async function requestChat (sender: User, recipient: User) {
@@ -116,8 +119,6 @@ async function acceptChat (user: User, message: Message) {
     if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
         console.error ('Invalid handshake message', message)
     }
-
-    console.info ('Received a correct offer:', message)
 
     await connection.setRemoteDescription (message.data)
     await connection.setLocalDescription (await connection.createAnswer ())
