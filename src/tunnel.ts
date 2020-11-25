@@ -1,4 +1,4 @@
-import { User, Message } from 'Common'
+import { User, Message, Promised, PromisedType, ChatMessage } from 'Common'
 import api from '~/api'
 
 const host = 'turn.neodequate.com'
@@ -9,28 +9,16 @@ async function Tunnel (from: string, to: string) {
         iceServers: [{ urls: `stun:${ host }${ port ? `:${ port }` : `` }` }]
     })
 
-    console.log ('RTC connection created', connection)
-
     connection.oniceconnectionstatechange = () => {
-        console.log ('oniceconnectionstatechange')
-
         if (connection.iceConnectionState === 'failed') {
             // @ts-ignore
             connection.restartIce ()
         }
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia ({ video: false, audio: true })
-
-    for (const track of stream.getTracks ()) {
-        connection.addTrack (track)
-    }
-
     let candidateListEnd = false
 
     connection.onicecandidate = async (event: RTCPeerConnectionIceEvent) => {
-        console.info ('Sending ice candidate')
-
         const getIceCandidate = await api.ice<{ from: string, to: string, data: RTCIceCandidate }, RTCIceCandidate> ({
             from, to, data: event.candidate
         })
@@ -44,8 +32,6 @@ async function Tunnel (from: string, to: string) {
             candidateListEnd = false
         }
 
-        console.info ('An ice candidate received:', { iceCandidate, error, done })
-
         if (error) {
             console.error ('Ice candidate exchange error:', error)
         }
@@ -57,24 +43,47 @@ async function Tunnel (from: string, to: string) {
         await connection.addIceCandidate (iceCandidate)
     }
 
-    connection.onnegotiationneeded = () => {
-        console.log ('negotiation are needed')
-    }
-
     return connection
 }
 
-async function requestChat (sender: User, recipient: User) {
-    console.info ('Requesting a chat', sender, recipient)
+async function Chat (channel: RTCDataChannel, sender: User, recipient: User) {
+    let message = undefined as PromisedType<{ data: ChatMessage, done: boolean }>
 
+    const refresh = () => message = Promised ()
+    const send = (message: string) => channel.send (
+        JSON.stringify ({ timestamp: Date.now (), message, sender, recipient } as ChatMessage)
+    )
+
+    const end = () => channel.close ()
+
+    try {
+        await new Promise ((resolve, reject) => {
+            channel.onerror = channel.onclose = reject
+            channel.onopen = () => {
+                resolve ()
+                refresh ()
+            }
+        })
+
+    } catch (e) {
+        throw e
+    }
+
+    channel.onerror = (e: RTCErrorEvent) => message.reject (e.error)
+    channel.onclose = () => message.resolve ({ data: undefined, done: true })
+    channel.onmessage = (e: MessageEvent) => {
+        message.resolve ({ data: JSON.parse (e.data), done: false })
+        refresh ()
+    }
+
+    return { message, send, end }
+}
+
+async function requestChat (sender: User, recipient: User) {
     const connection = await Tunnel (sender.id, recipient.id)
 
     connection.onnegotiationneeded = async () => {
-        console.log ('negotiation are needed')
-
         await connection.setLocalDescription (await connection.createOffer ())
-
-        console.info ('Sending offer')
 
         const getAnswer = await api.sdp<{ from: string, to: string, data: RTCSessionDescription }, RTCSessionDescription> ({
             from: sender.id,
@@ -82,9 +91,7 @@ async function requestChat (sender: User, recipient: User) {
             data: connection.localDescription
         })
 
-        const { data: answer, error, done }  = await getAnswer ()
-
-        console.info ('An answer received:', { answer, error, done })
+        const { data: answer, error, done } = await getAnswer ()
 
         if (error) {
             console.error ('Handshake error:', error)
@@ -97,6 +104,10 @@ async function requestChat (sender: User, recipient: User) {
 
         await connection.setRemoteDescription (answer)
     }
+
+    const channel = await connection.createDataChannel (`${ sender.id }-${ recipient.id }`)
+
+    return Chat (channel, sender, recipient)
 }
 
 async function acceptChat (user: User, message: Message) {
@@ -117,7 +128,23 @@ async function acceptChat (user: User, message: Message) {
         data: connection.localDescription
     })
 
-    console.info ('Answer sent successfully')
+    try {
+        const channel = await new Promise ((resolve, reject) => {
+            connection.ondatachannel = (e: RTCDataChannelEvent) => {
+                resolve (e.channel)
+            }
+
+            const timeout = setTimeout (() => {
+                clearTimeout (timeout)
+                reject (new Error ('Data channel timeout'))
+            }, 60000)
+        }) as RTCDataChannel
+
+        return Chat (channel, user, { id: message.from, status: 'online' }) // TODO: elaborate on the recipient object
+
+    } catch (e) {
+        throw e
+    }
 }
 
 export { requestChat, acceptChat }
