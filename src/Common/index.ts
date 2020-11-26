@@ -28,10 +28,24 @@ export type ChatMessage = {
     media?: null, // temp
 }
 
-export type ChatController = {
+export type DataController = {
     message: () => Promise<{ data: ChatMessage, done: boolean }>,
     send: (message: string) => ChatMessage,
     end: () => void,
 }
+
+export type MediaController = {
+    startCall: () => Promise<void>,
+    startVideoCall: () => Promise<void>,
+    shareScreen: () => Promise<void>,
+    muteAudio: () => void,
+    muteVideo: () => void,
+    unmuteAudio: () => void,
+    unmuteVideo: () => void,
+    endSharingScreen: () => void,
+    endCall: () => void,
+}
+
+export type ChatController = DataController & MediaController
 
 export type Message = { from: string, to: string, type: string, data: any, error?: string };

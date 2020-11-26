@@ -1,4 +1,4 @@
-import { User, Message, Promised, PromisedType, ChatMessage, ChatController } from 'Common'
+import { User, Message, Promised, PromisedType, ChatMessage, DataController, MediaController, ChatController } from 'Common'
 import api from '~/api'
 
 const host = 'turn.neodequate.com'
@@ -46,7 +46,7 @@ async function Tunnel (from: string, to: string) {
     return connection
 }
 
-async function Chat (channel: RTCDataChannel, sender: User, recipient: User): Promise<ChatController> {
+async function initDataController (channel: RTCDataChannel, sender: User, recipient: User): Promise<DataController> {
     let message = undefined as PromisedType<{ data: ChatMessage, done: boolean }>
 
     const refresh = () => message = Promised ()
@@ -82,7 +82,67 @@ async function Chat (channel: RTCDataChannel, sender: User, recipient: User): Pr
     return { message: () => message, send, end }
 }
 
-async function requestChat (sender: User, recipient: User) {
+function initMediaController (connection: RTCPeerConnection): MediaController {
+    let audio = undefined as RTCRtpSender
+    let video = undefined as RTCRtpSender
+    let screen = undefined as RTCRtpSender
+
+    const startCall = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia ({ audio: true, video: false })
+
+        for (const track of stream.getTracks ()) {
+            connection.addTrack (track)
+        }
+    }
+
+    const shareScreen = async () => {
+        // @ts-ignore
+        const stream = await navigator.mediaDevices.getDisplayMedia ()
+
+        for (const track of stream.getTracks ()) {
+            if (track.kind === 'video' && !screen) screen = connection.addTrack (track)
+        } 
+    }
+
+    const startVideoCall = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
+
+        for (const track of stream.getTracks ()) {
+            if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
+            if (track.kind === 'video' && !video) video = connection.addTrack (track)
+        }
+    }
+
+    const muteAudio = () => audio.track.enabled = false
+    const muteVideo = () => video.track.enabled = false
+    const unmuteAudio = () => audio.track.enabled = true
+    const unmuteVideo = () => video.track.enabled = true
+
+    const endSharingScreen = () => {
+        if (screen) {
+            connection.removeTrack (screen)
+            screen.track.stop ()
+            screen = undefined
+        }
+    }
+
+    const endCall = () => {
+        if (audio) {
+            connection.removeTrack (audio)
+            audio.track.stop ()
+            audio = undefined
+        }
+        if (video) {
+            connection.removeTrack (video)
+            video.track.stop ()
+            video = undefined
+        }
+    }
+
+    return { startCall, startVideoCall, shareScreen, muteAudio, muteVideo, unmuteAudio, unmuteVideo, endSharingScreen, endCall }
+}
+
+async function requestChat (sender: User, recipient: User): Promise<ChatController> {
     const connection = await Tunnel (sender.id, recipient.id)
 
     connection.onnegotiationneeded = async () => {
@@ -109,11 +169,12 @@ async function requestChat (sender: User, recipient: User) {
     }
 
     const channel = await connection.createDataChannel (`${ sender.id }-${ recipient.id }`)
+    const dataController = await initDataController (channel, sender, recipient)
 
-    return Chat (channel, sender, recipient)
+    return { ...dataController, ...initMediaController (connection) }
 }
 
-async function acceptChat (user: User, message: Message) {
+async function acceptChat (user: User, message: Message): Promise<ChatController> {
     const connection = await Tunnel (user.id, message.from)
 
     if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
@@ -141,7 +202,9 @@ async function acceptChat (user: User, message: Message) {
             }, 60000)
         }) as RTCDataChannel
 
-        return Chat (channel, user, { id: message.from, status: 'online' }) // TODO: elaborate on the recipient object
+        const dataController = await initDataController (channel, user, { id: message.from, status: 'online' }) // TODO: elaborate on the recipient object
+
+        return { ...dataController, ...initMediaController (connection) }
 
     } catch (e) {
         throw e
