@@ -6,8 +6,8 @@ import api from '~/api'
 const AppContext = createContext ({
     user: undefined as User,
     setUser: (() => {}) as (user: User | ((user: User) => User)) => void,
-    chat: undefined as ChatController,
     startChat: (() => {}) as (recipient: User) => void,
+    chat: undefined as ChatController,
 })
 
 export const useAppContext = () => useContext (AppContext)

@@ -85,14 +85,54 @@ async function initDataController (channel: RTCDataChannel, sender: User, recipi
 function initMediaController (connection: RTCPeerConnection): MediaController {
     let audio = undefined as RTCRtpSender
     let video = undefined as RTCRtpSender
+    let stream = undefined as MediaStream
     let screen = undefined as RTCRtpSender
+    let incomingStream = undefined as MediaStream
+    let incomingStreamPromise = Promised () as PromisedType<MediaStream>
+
+    const startVideoCall = async () => {
+        const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
+
+        for (const track of media.getTracks ()) {
+            if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
+            if (track.kind === 'video' && !video) video = connection.addTrack (track)
+        }
+
+        if (!stream) {
+            return stream = media
+        }
+
+        if (!stream.getAudioTracks ().length) {
+            stream.addTrack (audio.track)
+        }
+
+        for (const track of stream.getVideoTracks ()) {
+            stream.removeTrack (track)
+        }
+
+        stream.addTrack (video.track)
+
+        return stream
+    }
 
     const startCall = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia ({ audio: true, video: false })
+        const media = await navigator.mediaDevices.getUserMedia ({ audio: audio ? true : false, video: false })
 
         for (const track of stream.getTracks ()) {
-            connection.addTrack (track)
+            if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
         }
+
+        if (!stream) {
+            return stream = media
+        }
+
+        for (const track of stream.getAudioTracks ()) {
+            stream.removeTrack (track)
+        }
+
+        stream.addTrack (audio.track)
+
+        return stream
     }
 
     const shareScreen = async () => {
@@ -101,16 +141,15 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
 
         for (const track of stream.getTracks ()) {
             if (track.kind === 'video' && !screen) screen = connection.addTrack (track)
-        } 
-    }
-
-    const startVideoCall = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
-
-        for (const track of stream.getTracks ()) {
-            if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
-            if (track.kind === 'video' && !video) video = connection.addTrack (track)
         }
+
+        for (const track of stream.getVideoTracks ()) {
+            stream.removeTrack (track)
+        }
+
+        stream.addTrack (screen.track)
+
+        return stream
     }
 
     const muteAudio = () => audio.track.enabled = false
@@ -121,6 +160,15 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
     const endSharingScreen = () => {
         if (screen) {
             connection.removeTrack (screen)
+
+            for (const track of stream.getVideoTracks ()) {
+                stream.removeTrack (track)
+            }
+
+            if (video) {
+                stream.addTrack (video.track)
+            }
+
             screen.track.stop ()
             screen = undefined
         }
@@ -139,7 +187,27 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
         }
     }
 
-    return { startCall, startVideoCall, shareScreen, muteAudio, muteVideo, unmuteAudio, unmuteVideo, endSharingScreen, endCall }
+    connection.ontrack = (e: RTCTrackEvent) => {
+        if (!incomingStream) {
+            incomingStream = new MediaStream ()
+            incomingStreamPromise.resolve (incomingStream)
+        }
+
+        incomingStream.addTrack (e.track)
+    }
+
+    return {
+        media: () => incomingStreamPromise,
+        startCall,
+        startVideoCall,
+        shareScreen,
+        muteAudio,
+        muteVideo,
+        unmuteAudio,
+        unmuteVideo,
+        endSharingScreen,
+        endCall,
+    }
 }
 
 async function requestChat (sender: User, recipient: User): Promise<ChatController> {

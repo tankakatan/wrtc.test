@@ -35,9 +35,10 @@ export type DataController = {
 }
 
 export type MediaController = {
-    startCall: () => Promise<void>,
-    startVideoCall: () => Promise<void>,
-    shareScreen: () => Promise<void>,
+    media: () => Promise<MediaStream>,
+    startCall: () => Promise<MediaStream>,
+    startVideoCall: () => Promise<MediaStream>,
+    shareScreen: () => Promise<MediaStream>,
     muteAudio: () => void,
     muteVideo: () => void,
     unmuteAudio: () => void,
