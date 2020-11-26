@@ -17,6 +17,7 @@ export default function ProvideCallContext ({ children }: { children: React.Reac
     const { chat } = useAppContext ()
 
     const startCall = useCallback (async () => {
+        console.log ('starting call:', chat)
         if (chat) setInStream (await chat.startCall ())
     }, [ chat ])
 

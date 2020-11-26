@@ -94,6 +94,7 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
         const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
 
         for (const track of media.getTracks ()) {
+            console.log ('adding a track', track.kind, audio, video)
             if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
             if (track.kind === 'video' && !video) video = connection.addTrack (track)
         }
@@ -116,9 +117,10 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
     }
 
     const startCall = async () => {
-        const media = await navigator.mediaDevices.getUserMedia ({ audio: audio ? true : false, video: false })
 
-        for (const track of stream.getTracks ()) {
+        const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: video ? true : false })
+
+        for (const track of media.getTracks ()) {
             if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
         }
 
@@ -188,11 +190,13 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
     }
 
     connection.ontrack = (e: RTCTrackEvent) => {
+        console.log ('incoming track')
         if (!incomingStream) {
             incomingStream = new MediaStream ()
             incomingStreamPromise.resolve (incomingStream)
         }
 
+        console.log ('adding track')
         incomingStream.addTrack (e.track)
     }
 

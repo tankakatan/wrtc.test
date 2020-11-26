@@ -5,7 +5,7 @@ import { ChatMessage } from '~Common'
 import './index.css'
 
 function Chat () {
-    const { history, postMessage, startCall, startVideoCall } = useChatContext ()
+    const { history, postMessage } = useChatContext ()
     const [ message, setMessage ] = useState<string> ('')
 
     const onKeyDown = useCallback ((e: React.KeyboardEvent) => {
@@ -36,10 +36,6 @@ function Chat () {
             </ul>
             <div>
                 <textarea onKeyDown={ onKeyDown } onChange={ onChange }></textarea>
-            </div>
-            <div>
-                <a href='#' onClick={ startCall }>Call</a>
-                <a href='#' onClick={ startVideoCall }>Video Call</a>
             </div>
         </div>
     ) : null

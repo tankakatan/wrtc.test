@@ -5,8 +5,6 @@ import { ChatMessage } from '~Common'
 const ChatContext = createContext ({
     history: undefined as ChatMessage[],
     postMessage: (() => {}) as (message: string) => void,
-    startCall: (() => {}),
-    startVideoCall: (() => {}),
 })
 
 export const useChatContext = () => useContext (ChatContext)
@@ -21,14 +19,6 @@ export default function ProvideChatContext ({ children }: { children: React.Reac
 
     const postMessage = useCallback ((message: string) => {
         if (chat) pushMessage (chat.send (message))
-    }, [ chat ])
-
-    const startCall = useCallback (async () => {
-        if (chat) await chat.startCall ()
-    }, [ chat ])
-
-    const startVideoCall = useCallback (async () => {
-        if (chat) await chat.startVideoCall ()
     }, [ chat ])
 
     useEffect (() => {
@@ -59,8 +49,6 @@ export default function ProvideChatContext ({ children }: { children: React.Reac
     const context = {
         history,
         postMessage,
-        startCall,
-        startVideoCall,
     }
 
     return <ChatContext.Provider value={ context }>{ children }</ChatContext.Provider>
