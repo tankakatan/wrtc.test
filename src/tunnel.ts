@@ -1,5 +1,15 @@
-import { User, Message, Promised, PromisedType, ChatMessage, DataController, MediaController, ChatController } from 'Common'
 import api from '~/api'
+import {
+    User,
+    UserId,
+    Promised,
+    PromisedType,
+    ChatController,
+    DataController,
+    MediaController,
+    MessageContent,
+    ChatMessage,
+} from 'Common'
 
 const host = 'turn.neodequate.com'
 const port = ''
@@ -19,7 +29,7 @@ async function Tunnel (from: string, to: string) {
     let candidateListEnd = false
 
     connection.onicecandidate = async (event: RTCPeerConnectionIceEvent) => {
-        const getIceCandidate = await api.ice<{ from: string, to: string, data: RTCIceCandidate }, RTCIceCandidate> ({
+        const getIceCandidate = await api.ice<MessageContent, RTCIceCandidate> ({
             from, to, data: event.candidate
         })
 
@@ -46,7 +56,7 @@ async function Tunnel (from: string, to: string) {
     return connection
 }
 
-async function initDataController (channel: RTCDataChannel, sender: User, recipient: User): Promise<DataController> {
+async function initDataController (channel: RTCDataChannel, sender: UserId, recipient: UserId): Promise<DataController> {
     let message = undefined as PromisedType<{ data: ChatMessage, done: boolean }>
 
     const refresh = () => message = Promised ()
@@ -190,13 +200,11 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
     }
 
     connection.ontrack = (e: RTCTrackEvent) => {
-        console.log ('incoming track')
         if (!incomingStream) {
             incomingStream = new MediaStream ()
             incomingStreamPromise.resolve (incomingStream)
         }
 
-        console.log ('adding track')
         incomingStream.addTrack (e.track)
     }
 
@@ -220,7 +228,7 @@ async function requestChat (sender: User, recipient: User): Promise<ChatControll
     connection.onnegotiationneeded = async () => {
         await connection.setLocalDescription (await connection.createOffer ())
 
-        const getAnswer = await api.sdp<{ from: string, to: string, data: RTCSessionDescription }, RTCSessionDescription> ({
+        const getAnswer = await api.sdp<MessageContent, RTCSessionDescription> ({
             from: sender.id,
             to: recipient.id,
             data: connection.localDescription
@@ -241,46 +249,56 @@ async function requestChat (sender: User, recipient: User): Promise<ChatControll
     }
 
     const channel = await connection.createDataChannel (`${ sender.id }-${ recipient.id }`)
-    const dataController = await initDataController (channel, sender, recipient)
+    const dataController = await initDataController (channel, sender.id, recipient.id)
 
     return { ...dataController, ...initMediaController (connection) }
 }
 
-async function acceptChat (user: User, message: Message): Promise<ChatController> {
-    const connection = await Tunnel (user.id, message.from)
+async function awaitForChat (user: User): Promise<ChatController> {
+    let connection = undefined as RTCPeerConnection
+    let chatController = Promised () as PromisedType<ChatController>
 
-    if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
-        console.error ('Invalid handshake message', message)
-    }
+    ;(async () => {
+        const nextOffer = await api.sdp<undefined, RTCSessionDescription> (undefined)
 
-    await connection.setRemoteDescription (message.data)
-    await connection.setLocalDescription (await connection.createAnswer ())
+        while (true) {
+            try {
+                const message = await nextOffer ()
 
-    await api.sdp<{ from: string, to: string, data: RTCSessionDescription }, RTCSessionDescription> ({
-        from: user.id,
-        to: message.from,
-        data: connection.localDescription
-    })
+                if (message.error) throw message.error
+                if (message.done) {
+                    console.log ('Offer issuer is exhausted')
+                    break
+                }
 
-    try {
-        const channel = await new Promise ((resolve, reject) => {
-            connection.ondatachannel = (e: RTCDataChannelEvent) => {
-                resolve (e.channel)
+                if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
+                    continue
+                }
+
+                if (!connection || connection.connectionState !== 'connected') {
+                    connection = await Tunnel (user.id, message.from)
+                    connection.ondatachannel = async (e: RTCDataChannelEvent) => {
+                        const dataController = await initDataController (e.channel, user.id, message.from)
+                        chatController.resolve ({ ...dataController, ...initMediaController (connection) })
+                    }
+                }
+
+                await connection.setRemoteDescription (message.data)
+                await connection.setLocalDescription (await connection.createAnswer ())
+                await api.sdp<MessageContent, RTCSessionDescription> ({
+                    from: user.id,
+                    to: message.from,
+                    data: connection.localDescription
+                })
+
+            } catch (e) {
+                chatController.reject (e)
+                break
             }
+        }
+    }) ()
 
-            const timeout = setTimeout (() => {
-                clearTimeout (timeout)
-                reject (new Error ('Data channel timeout'))
-            }, 60000)
-        }) as RTCDataChannel
-
-        const dataController = await initDataController (channel, user, { id: message.from, status: 'online' }) // TODO: elaborate on the recipient object
-
-        return { ...dataController, ...initMediaController (connection) }
-
-    } catch (e) {
-        throw e
-    }
+    return chatController
 }
 
-export { requestChat, acceptChat }
+export { requestChat, awaitForChat }

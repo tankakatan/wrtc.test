@@ -13,8 +13,9 @@ export const Promised = <T>(): PromisedType<T> => {
     return Object.assign (promise as Promise<T> , { resolve, reject })
 }
 
+export type UserId = string
 export type User = {
-    id: string,
+    id: UserId,
     name?: string,
     status: 'online' | 'offline' | 'error',
     error?: Error,
@@ -23,8 +24,8 @@ export type User = {
 export type ChatMessage = {
     timestamp: Number,
     message: string,
-    sender: User,
-    recipient: User,
+    sender: UserId,
+    recipient: UserId,
     media?: null, // temp
 }
 
@@ -48,5 +49,5 @@ export type MediaController = {
 }
 
 export type ChatController = DataController & MediaController
-
-export type Message = { from: string, to: string, type: string, data: any, error?: string };
+export type MessageContent = { from: string, to: string, data: any, error?: string }
+export type Message = { type: string } & MessageContent

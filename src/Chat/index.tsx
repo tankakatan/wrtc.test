@@ -28,7 +28,7 @@ function Chat () {
             <ul>
                 {
                     history.map (({ timestamp, sender, message}: ChatMessage) => (
-                        <li key={ `${ timestamp }-${ sender.id }` }>
+                        <li key={ `${ timestamp }-${ sender }` }>
                             <span>{ message }</span>
                         </li>
                     ))
