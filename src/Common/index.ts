@@ -17,10 +17,11 @@ export type UserId = string
 export type User = {
     id: UserId,
     name?: string,
-    status: 'online' | 'offline' | 'error',
+    status?: 'online' | 'offline' | 'error',
     error?: Error,
 }
 
+export type ContactList = { [id in UserId]: User }
 export type ChatMessage = {
     timestamp: Number,
     message: string,
@@ -49,5 +50,5 @@ export type MediaController = {
 }
 
 export type ChatController = DataController & MediaController
-export type MessageContent = { from: string, to: string, data: any, error?: string }
-export type Message = { type: string } & MessageContent
+export type SignalingMessage<T> = { from: string, to?: string, payload: T, error?: string }
+export type SignalingMessageEnvelop<T> = { type: string, message: SignalingMessage<T> }

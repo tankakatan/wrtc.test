@@ -19,9 +19,7 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
     const startChat = useCallback (async (recipient) => {
         try {
-            const chat = await requestChat (user, recipient)
-            setChat (chat)
-
+            setChat (await requestChat (user, recipient))
         } catch (e) {
             console.error ('Error starting a chat:', e)
         }
@@ -31,11 +29,11 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
     useEffect (() => {
         if (!user) return
 
-        ;(async () => {
+        void (async () => {
             try {
                 setChat (await awaitForChat (user))
             } catch (e) {
-                console.error ('Chat offer error:', e)
+                console.error ('Error receiving a chat:', e)
             }
         }) ()
 
@@ -48,5 +46,5 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
         startChat,
     }
 
-    return (<AppContext.Provider value={ context }>{ children }</AppContext.Provider>)
+    return <AppContext.Provider value={ context }>{ children }</AppContext.Provider>
 }

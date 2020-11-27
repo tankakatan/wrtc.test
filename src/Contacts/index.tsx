@@ -10,7 +10,7 @@ function Contacts () {
     return (
         <ul>
             {
-                contacts.map (c =>
+                Object.values (contacts).map (c =>
                     <li key={ c.id } onClick={ () => startChat (c) }>
                         { `${ c.name || c.id } (${ user && c.id === user.id ? 'you' : c.status })` }
                     </li>

@@ -7,7 +7,7 @@ import {
     ChatController,
     DataController,
     MediaController,
-    MessageContent,
+    SignalingMessage,
     ChatMessage,
 } from 'Common'
 
@@ -29,28 +29,31 @@ async function Tunnel (from: string, to: string) {
     let candidateListEnd = false
 
     connection.onicecandidate = async (event: RTCPeerConnectionIceEvent) => {
-        const getIceCandidate = await api.ice<MessageContent, RTCIceCandidate> ({
-            from, to, data: event.candidate
+        const getIceCandidate = await api.ice<SignalingMessage<RTCIceCandidate>, RTCIceCandidate> ({
+            from, to, payload: event.candidate
         })
 
-        const { data: iceCandidate, error, done } = await getIceCandidate ()
+        const packet = await getIceCandidate ()
 
-        if (iceCandidate === null) {
+        if (packet.error) {
+            console.error ('Ice candidate exchange error:', packet.error)
+        }
+
+        if (packet.done) {
+            console.info ('Ice candidate exchange unexpectedly completed')
+            return
+        }
+
+        const candidate = packet?.data?.message?.payload
+
+        if (candidate === null) {
             if (candidateListEnd) return
             else candidateListEnd = true
         } else {
             candidateListEnd = false
         }
 
-        if (error) {
-            console.error ('Ice candidate exchange error:', error)
-        }
-
-        if (done) {
-            console.info ('Ice candidate exchange unexpectedly completed')
-        }
-
-        await connection.addIceCandidate (iceCandidate)
+        await connection.addIceCandidate (candidate)
     }
 
     return connection
@@ -228,24 +231,25 @@ async function requestChat (sender: User, recipient: User): Promise<ChatControll
     connection.onnegotiationneeded = async () => {
         await connection.setLocalDescription (await connection.createOffer ())
 
-        const getAnswer = await api.sdp<MessageContent, RTCSessionDescription> ({
+        const getAnswer = await api.sdp<SignalingMessage<RTCSessionDescription>, RTCSessionDescription> ({
             from: sender.id,
             to: recipient.id,
-            data: connection.localDescription
+            payload: connection.localDescription
         })
 
-        const { data: answer, error, done } = await getAnswer ()
+        const packet = await getAnswer ()
 
-        if (error) {
-            console.error ('Handshake error:', error)
-            throw error
+        if (packet.error) {
+            console.error ('Handshake error:', packet.error)
+            throw packet.error
         }
 
-        if (done) {
-            console.info ('Handshake unexpectedly completed', answer)
+        if (packet.done) {
+            console.info ('Handshake unexpectedly completed', packet)
+            return
         }
 
-        await connection.setRemoteDescription (answer)
+        await connection.setRemoteDescription (packet.data.message.payload)
     }
 
     const channel = await connection.createDataChannel (`${ sender.id }-${ recipient.id }`)
@@ -263,15 +267,17 @@ async function awaitForChat (user: User): Promise<ChatController> {
 
         while (true) {
             try {
-                const message = await nextOffer ()
+                const packet = await nextOffer ()
 
-                if (message.error) throw message.error
-                if (message.done) {
+                if (packet.error) throw packet.error
+                if (packet.done) {
                     console.log ('Offer issuer is exhausted')
                     break
                 }
 
-                if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
+                const { message } = packet.data
+
+                if (!message.payload || message.payload.type !== 'offer' || !message.payload.sdp) {
                     continue
                 }
 
@@ -283,12 +289,12 @@ async function awaitForChat (user: User): Promise<ChatController> {
                     }
                 }
 
-                await connection.setRemoteDescription (message.data)
+                await connection.setRemoteDescription (message.payload)
                 await connection.setLocalDescription (await connection.createAnswer ())
-                await api.sdp<MessageContent, RTCSessionDescription> ({
+                await api.sdp<SignalingMessage<RTCSessionDescription>, RTCSessionDescription> ({
                     from: user.id,
                     to: message.from,
-                    data: connection.localDescription
+                    payload: connection.localDescription
                 })
 
             } catch (e) {

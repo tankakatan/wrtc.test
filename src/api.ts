@@ -1,7 +1,7 @@
-import { Promised, PromisedType } from 'Common'
+import { Promised, PromisedType, SignalingMessageEnvelop } from 'Common'
 
 type WsConnectionOptions = { retries?: number, timeout?: number }
-type WsEndpointResponse<Response> = { from?: string, to?: string, type?: string, data: Response, error?: string, done: boolean }
+type Packet<T> = { data: T, error?: string, done: boolean }
 
 class WsTimeoutError extends Error {}
 
@@ -62,7 +62,7 @@ const getSocket = () => {
     }) as Promise<typeof ws>
 }
 
-const countdown = (timeout: number) => new Promise ((_, reject) => {
+const countdown = <T>(timeout: number): Promise<T> => new Promise ((_, reject) => {
     const timeoutId = setTimeout (() => {
         clearTimeout (timeoutId)
         reject (new WsTimeoutError ('Web Socket Connection Timeout'))
@@ -71,9 +71,9 @@ const countdown = (timeout: number) => new Promise ((_, reject) => {
 
 const api = new Proxy ({}, {
     get (_, type: string) {
-        return async function <Request, Response>(data?: Request, { retries = 3, timeout = 3600000 } = {} as WsConnectionOptions | undefined) {
+        return async function <Request, Response>(data = undefined as Request, { retries = 3, timeout = 3600000 } = {} as WsConnectionOptions) {
             let ws = await getSocket ()
-            let message = undefined as PromisedType<WsEndpointResponse<Response>>
+            let message = undefined as PromisedType<Packet<SignalingMessageEnvelop<Response>>>
 
             const refresh = () => message = Promised ()
 
@@ -83,31 +83,31 @@ const api = new Proxy ({}, {
                 if (isWsError (e)) {
                     message.resolve ({ data: undefined, error: parseWsError (e), done: false })
                 } else {
-                    message.resolve ({ data: undefined, done: true, error: undefined })
+                    message.resolve ({ data: undefined, error: undefined, done: true })
                 }
             })
 
             ws.addEventListener ('message', (msg: MessageEvent) => {
-                const data = JSON.parse (msg.data)
+                const data = JSON.parse (msg.data) as SignalingMessageEnvelop<Response>
 
                 if (data.type === type) {
-                    message.resolve (data)
+                    message.resolve ({ data, error: undefined, done: false })
                     refresh ()
                 }
             })
 
-            const next = async () => {
+            const next = async (): Promise<Packet<SignalingMessageEnvelop<Response>>> => {
                 let attempts = Math.max (retries, 0)
 
                 while (true) {
                     if (disconnected (ws)) throw new Error ('Socket is closed')
 
                     try {
-                        return await Promise.race ([ message, countdown (timeout) ])
+                        return await Promise.race ([ message, countdown<Packet<SignalingMessageEnvelop<Response>>> (timeout) ])
 
-                    } catch (e) {
-                        if (!(e instanceof WsTimeoutError) || !(attempts--)) {
-                            return Promise.resolve ({ data: undefined, done: true, error: e })
+                    } catch (error) {
+                        if (!(error instanceof WsTimeoutError) || !(attempts--)) {
+                            return Promise.resolve ({ data: undefined, error, done: true })
                         }
 
                         ws.closeSocket ()
@@ -117,7 +117,7 @@ const api = new Proxy ({}, {
             }
 
             if (data) {
-                ws.sendMessage ({ type, ...data })
+                ws.sendMessage ({ type, message: data })
             }
 
             refresh ()
@@ -127,7 +127,7 @@ const api = new Proxy ({}, {
     }
 }) as {
     [key: string]: <Request, Response>(data: Request, options?: WsConnectionOptions) => (
-        (() => Promise<WsEndpointResponse<Response>>) & {
+        (() => Promise<Packet<SignalingMessageEnvelop<Response>>>) & {
             cancel: (code?: number, reason?: string) => void,
             send: (msg: any) => void,
         }

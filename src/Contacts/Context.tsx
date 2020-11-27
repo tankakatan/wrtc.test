@@ -2,16 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import Fp from '@fingerprintjs/fingerprintjs'
 import api from '~/api'
 import { useAppContext } from '~App/Context'
-import { User } from 'Common'
-
-type Contact = {
-    id: string,
-    name?: string,
-    status: 'online' | 'offline' | 'error',
-}
+import { ContactList, User, SignalingMessage } from 'Common'
 
 const ContactsContext = createContext ({
-    contacts: [] as Contact[],
+    contacts: {} as ContactList,
 })
 
 export function useContactsContext () {
@@ -19,8 +13,7 @@ export function useContactsContext () {
 }
 
 export default function ProvideContactsContext ({ children = null }: { children: React.ReactNode }) {
-    const [ contacts, setContacts ] = useState<Contact[]> ([])
-    const [ shouldStop, setShouldStop ] = useState<boolean> (false) // To do: this is a boolshit
+    const [ contacts, setContacts ] = useState<ContactList> ({})
     const { user, setUser } = useAppContext ()
 
     useEffect (() => {
@@ -30,23 +23,21 @@ export default function ProvideContactsContext ({ children = null }: { children:
                 setUser (user => ({ ...user, id }))
 
             } else {
-                const next = await api.register<{ from: string, data: User }, { register: Contact[] }> (
-                    { from: user.id, data: user },
+                const next = await api.register<SignalingMessage<User>, ContactList> (
+                    { from: user.id, payload: user },
                     { timeout: 3600000 }
                 )
 
-                setShouldStop (false)
-
                 while (true) {
-                    if (shouldStop) break
-
                     try {
                         const { data, error, done } = await next ()
 
                         if (error) throw new Error (error)
                         if (done) break
 
-                        setContacts (data.register)
+                        console.log ({ data })
+
+                        setContacts (data.message.payload)
 
                     } catch (e) {
                         console.error (e)
@@ -56,8 +47,6 @@ export default function ProvideContactsContext ({ children = null }: { children:
                 }
             }
         }) ()
-
-        return () => setShouldStop (true)
     }, [ user && user.id || null ])
 
     return <ContactsContext.Provider value={{ contacts }}>{ children }</ContactsContext.Provider>
