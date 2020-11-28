@@ -12,7 +12,7 @@ function Call (): React.ReactElement {
     return chat ? (
         <div>
             { inStream ? <Video stream={ inStream }/> : null }
-            { outStream ? <Video stream={ outStream }/> : null }
+            { outStream ? <Video muted stream={ outStream }/> : null }
             {
                 inStream || outStream ? null : (
                     <div>

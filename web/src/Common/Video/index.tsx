@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 
 import './index.css'
 
-export default function Video ({ stream = undefined as MediaStream, className = '' }) {
+export default function Video ({ stream = undefined as MediaStream, className = '', muted = false }) {
 
     const [playing, setPlaying] = useState (false)
 
@@ -24,6 +24,8 @@ export default function Video ({ stream = undefined as MediaStream, className = 
         void (async () => {
             el.current.srcObject = stream
 
+            if (muted) el.current.muted = true
+
             try {
                 await el.current.play ()
             } catch (e) {
@@ -38,5 +40,6 @@ export default function Video ({ stream = undefined as MediaStream, className = 
                   onPlay={ () => setPlaying (true) }
                   onPause={ () => setPlaying (false) }
                   className={ className }
-                  onCanPlay={ onCanPlay }/>
+                  onCanPlay={ onCanPlay }
+                  muted={ muted }/>
 }
