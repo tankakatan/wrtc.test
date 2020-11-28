@@ -4,12 +4,15 @@
   "description": "WS server for webrtc connection handshake",
   "main": "build/index.js",
   "scripts": {
+    "preinstall": "npx typescript --project ../shared/tsconfig.json",
+    "postinstall": "rm node_modules/shared && mv ../shared node_modules/shared",
     "start": "node build/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "takatan",
   "license": "ISC",
   "dependencies": {
+    "shared": "file:../shared",
     "ws": "^7.4.0"
   },
   "devDependencies": {

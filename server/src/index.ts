@@ -1,10 +1,6 @@
 import { IncomingMessage } from 'http'
 import WebSocket, { Server } from 'ws'
-
-type SignalingMessage = { from: string, to?: string, payload: any, error?: string }
-type SignalingMessageEnvelop = { type: string, message: SignalingMessage }
-type UserId = string
-type User = { id: UserId, name?: string }
+import { SignalingMessageEnvelop, User, UserId } from 'shared'
 
 const port = 5976
 
@@ -16,7 +12,7 @@ const send = (ws: WebSocket, data: any) => {
     if (!disconnected (ws)) ws.send (JSON.stringify (data))
 }
 
-const errorResponse = (message: string, request: SignalingMessageEnvelop): SignalingMessageEnvelop => ({
+const errorResponse = (message: string, request: SignalingMessageEnvelop<any>): SignalingMessageEnvelop<undefined> => ({
     type: request.type,
     message: {
         from: 'server',
@@ -40,7 +36,7 @@ new Server ({ port })
 
         ws
             .on ('message', (msg: string) => {
-                const data = JSON.parse (msg) as SignalingMessageEnvelop
+                const data = JSON.parse (msg) as SignalingMessageEnvelop<any>
                 const { type, message: { from, to } } = data
 
                 if (!type) {

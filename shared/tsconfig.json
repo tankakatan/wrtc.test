@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "declaration": true,
+        "allowSyntheticDefaultImports": true,
+        "allowJs": false,
+        "noImplicitAny": true,
+        "outDir": "build"
+    },
+    "include": ["src/**/*"]
+}

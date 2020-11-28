@@ -1,4 +1,4 @@
-import { Promised, PromisedType, SignalingMessageEnvelop } from 'Common'
+import { Promised, PromisedType, SignalingMessageEnvelop } from 'shared'
 
 type WsConnectionOptions = { retries?: number, timeout?: number }
 type Packet<T> = { data: T, error?: string, done: boolean }

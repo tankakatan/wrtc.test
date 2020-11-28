@@ -9,7 +9,7 @@ import {
     MediaController,
     SignalingMessage,
     ChatMessage,
-} from 'Common'
+} from 'shared'
 
 const host = 'turn.neodequate.com'
 const port = ''

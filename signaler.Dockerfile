@@ -1,17 +1,21 @@
 FROM node:alpine as builder
 
-WORKDIR /app
+RUN addgroup -S builder && adduser -S -D -G 'builder' builder
 
-COPY ./server /app
+WORKDIR /home/builder/server
 
-RUN npx typescript && rm -rf src
+COPY server /home/builder/server
+COPY shared /home/builder/shared
+
+RUN chown -Rf builder:builder ../server ../shared
+USER builder
+
+RUN npm ci && npx typescript && rm -rf src
 
 FROM node:alpine
 
 WORKDIR /app
 
-COPY --from=builder /app /app
-
-RUN ls -ahl && ls -ahl build && npm ci
+COPY --from=builder /home/builder/server /app
 
 CMD [ "npm", "start" ]
