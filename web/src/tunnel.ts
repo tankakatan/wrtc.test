@@ -228,16 +228,12 @@ async function requestChat (from: UserId, to: UserId): Promise<ChatController> {
 
     connection.onnegotiationneeded = async () => {
         await connection.setLocalDescription (await connection.createOffer ())
-        console.log ('Sending the offer', { from, to,
-            data: connection.localDescription
-        })
+
         const getAnswer = await api.sdp<RTCSessionDescription, RTCSessionDescription> ({ from, to,
             data: connection.localDescription
         })
 
         const { message } = await getAnswer ()
-
-        console.log ('Answer received:', message)
 
         if (message.error) {
             console.error ('Handshake error:', message.error)

@@ -18,7 +18,6 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
     const startChat = useCallback (async (recipient) => {
         try {
-            console.log ({recipient})
             setChat (await requestChat (user.id, recipient.id))
         } catch (e) {
             console.error ('Error starting a chat:', e)

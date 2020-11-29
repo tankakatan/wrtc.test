@@ -101,10 +101,7 @@ const api = new Proxy ({}, {
                     if (disconnected (ws)) throw new Error ('Socket is closed')
 
                     try {
-                        const res = await Promise.race ([ message, countdown<Response> (timeout) ])
-
-                        console.log ({ res })
-                        return res
+                        return await Promise.race ([ message, countdown<Response> (timeout) ])
 
                     } catch (error) {
                         if (!(error instanceof WsTimeoutError) || !(attempts--)) {
@@ -118,7 +115,7 @@ const api = new Proxy ({}, {
             }
 
             if (data) {
-                ws.sendMessage ({ type, from, to, message: { data, done: true } })
+                ws.sendMessage ({ type, from, to, message: { data, done: false } })
             }
 
             refresh ()
