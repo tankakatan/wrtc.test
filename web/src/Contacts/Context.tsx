@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import Fp from '@fingerprintjs/fingerprintjs'
 import api from '~/api'
 import { useAppContext } from '~App/Context'
-import { ContactList, User, SignalingMessage } from 'Common'
+import { ContactList, User, SignalingMessage } from 'shared'
 
 const ContactsContext = createContext ({
     contacts: {} as ContactList,
@@ -23,21 +23,19 @@ export default function ProvideContactsContext ({ children = null }: { children:
                 setUser (user => ({ ...user, id }))
 
             } else {
-                const next = await api.register<SignalingMessage<User>, ContactList> (
-                    { from: user.id, payload: user },
+                const next = await api.register<User, ContactList> (
+                    { from: user.id, to: 'server', data: user },
                     { timeout: 3600000 }
                 )
 
                 while (true) {
                     try {
-                        const { data, error, done } = await next ()
+                        const { message } = await next ()
 
-                        if (error) throw new Error (error)
-                        if (done) break
+                        if (message.error) throw new Error (message.error)
+                        if (message.done) break
 
-                        console.log ({ data })
-
-                        setContacts (data.message.payload)
+                        setContacts (message.data)
 
                     } catch (e) {
                         console.error (e)

@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { User, ChatController } from 'Common'
+import { User, ChatController } from 'shared'
 import { requestChat, awaitForChat } from '~/tunnel'
-import api from '~/api'
 
 const AppContext = createContext ({
     user: undefined as User,
@@ -19,7 +18,8 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
     const startChat = useCallback (async (recipient) => {
         try {
-            setChat (await requestChat (user, recipient))
+            console.log ({recipient})
+            setChat (await requestChat (user.id, recipient.id))
         } catch (e) {
             console.error ('Error starting a chat:', e)
         }
@@ -31,7 +31,7 @@ export const ProvideAppContext = ({ children = undefined as React.ReactNode }) =
 
         void (async () => {
             try {
-                setChat (await awaitForChat (user))
+                setChat (await awaitForChat (user.id))
             } catch (e) {
                 console.error ('Error receiving a chat:', e)
             }

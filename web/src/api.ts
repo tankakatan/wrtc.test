@@ -1,7 +1,7 @@
-import { Promised, PromisedType, SignalingMessageEnvelop } from 'shared'
+import { Promised, PromisedType, SignalingMessage, SignalingMessageEnvelop, User, UserId } from 'shared'
 
 type WsConnectionOptions = { retries?: number, timeout?: number }
-type Packet<T> = { data: T, error?: string, done: boolean }
+type Packet<T> = { from: UserId, to: UserId, data?: T }
 
 class WsTimeoutError extends Error {}
 
@@ -62,7 +62,7 @@ const getSocket = () => {
     }) as Promise<typeof ws>
 }
 
-const countdown = <T>(timeout: number): Promise<T> => new Promise ((_, reject) => {
+const countdown = <T>(timeout: number): Promise<SignalingMessageEnvelop<T>> => new Promise ((_, reject) => {
     const timeoutId = setTimeout (() => {
         clearTimeout (timeoutId)
         reject (new WsTimeoutError ('Web Socket Connection Timeout'))
@@ -71,43 +71,44 @@ const countdown = <T>(timeout: number): Promise<T> => new Promise ((_, reject) =
 
 const api = new Proxy ({}, {
     get (_, type: string) {
-        return async function <Request, Response>(data = undefined as Request, { retries = 3, timeout = 3600000 } = {} as WsConnectionOptions) {
+        return async function <Request, Response>({ from, to, data }: Packet<Request>, {
+            retries = 3,
+            timeout = 3600000,
+        } = {} as WsConnectionOptions) {
             let ws = await getSocket ()
-            let message = undefined as PromisedType<Packet<SignalingMessageEnvelop<Response>>>
+            let message = undefined as PromisedType<SignalingMessageEnvelop<Response>>
 
             const refresh = () => message = Promised ()
 
             ws.addEventListener ('close', (e: CloseEvent) => {
                 if (!message) return
-
-                if (isWsError (e)) {
-                    message.resolve ({ data: undefined, error: parseWsError (e), done: false })
-                } else {
-                    message.resolve ({ data: undefined, error: undefined, done: true })
-                }
+                message.reject (new Error (parseWsError (e)))
             })
 
             ws.addEventListener ('message', (msg: MessageEvent) => {
                 const data = JSON.parse (msg.data) as SignalingMessageEnvelop<Response>
 
                 if (data.type === type) {
-                    message.resolve ({ data, error: undefined, done: false })
+                    message.resolve (data)
                     refresh ()
                 }
             })
 
-            const next = async (): Promise<Packet<SignalingMessageEnvelop<Response>>> => {
+            const next = async (): Promise<SignalingMessageEnvelop<Response>> => {
                 let attempts = Math.max (retries, 0)
 
                 while (true) {
                     if (disconnected (ws)) throw new Error ('Socket is closed')
 
                     try {
-                        return await Promise.race ([ message, countdown<Packet<SignalingMessageEnvelop<Response>>> (timeout) ])
+                        const res = await Promise.race ([ message, countdown<Response> (timeout) ])
+
+                        console.log ({ res })
+                        return res
 
                     } catch (error) {
                         if (!(error instanceof WsTimeoutError) || !(attempts--)) {
-                            return Promise.resolve ({ data: undefined, error, done: true })
+                            return // Promise.reject (error)
                         }
 
                         ws.closeSocket ()
@@ -117,7 +118,7 @@ const api = new Proxy ({}, {
             }
 
             if (data) {
-                ws.sendMessage ({ type, message: data })
+                ws.sendMessage ({ type, from, to, message: { data, done: true } })
             }
 
             refresh ()
@@ -126,8 +127,8 @@ const api = new Proxy ({}, {
         }
     }
 }) as {
-    [key: string]: <Request, Response>(data: Request, options?: WsConnectionOptions) => (
-        (() => Promise<Packet<SignalingMessageEnvelop<Response>>>) & {
+    [key: string]: <Request, Response>(data: Packet<Request>, options?: WsConnectionOptions) => (
+        (() => Promise<SignalingMessageEnvelop<Response>>) & {
             cancel: (code?: number, reason?: string) => void,
             send: (msg: any) => void,
         }

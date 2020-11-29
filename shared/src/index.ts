@@ -47,5 +47,5 @@ export type MediaController = {
 }
 
 export type ChatController = DataController & MediaController
-export type SignalingMessage<T> = { from: string, to?: string, payload: T, error?: string }
-export type SignalingMessageEnvelop<T> = { type: string, message: SignalingMessage<T> }
+export type SignalingMessage<T> = { data: T, error?: string, done: boolean }
+export type SignalingMessageEnvelop<T> = { type: string, from: string, to: string, message: SignalingMessage<T> }

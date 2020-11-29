@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useCallback, useState } from 'react'
 import { useAppContext } from '~App/Context'
-import { ChatMessage } from '~Common'
+import { ChatMessage } from 'shared'
 
 const ChatContext = createContext ({
     history: undefined as ChatMessage[],

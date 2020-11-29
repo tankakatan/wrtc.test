@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "preinstall": "cd ../shared && npx typescript",
+    "postinstall": "rm node_modules/shared && mv ../shared node_modules/shared",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "rm -rf dist .cache && NODE_ENV=test parcel src/index.html"
   },

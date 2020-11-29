@@ -8,23 +8,29 @@ const clients = {} as { [id in UserId]: User }
 const sockets = {} as { [id in UserId]: WebSocket }
 
 const disconnected = (ws: WebSocket) => !ws || (ws.readyState === ws.CLOSED) || (ws.readyState === ws.CLOSING)
-const send = (ws: WebSocket, data: any) => {
-    if (!disconnected (ws)) ws.send (JSON.stringify (data))
+const send = (ws: WebSocket, data: SignalingMessageEnvelop<any>) => {
+    if (!disconnected (ws)) {
+        ws.send (JSON.stringify (data))
+    }
 }
 
-const errorResponse = (message: string, request: SignalingMessageEnvelop<any>): SignalingMessageEnvelop<undefined> => ({
+const errorResponse = (error: string, request: SignalingMessageEnvelop<any>): SignalingMessageEnvelop<undefined> => ({
     type: request.type,
+    from: 'server',
+    to: request.from,
     message: {
-        from: 'server',
-        to: request.message.from,
-        payload: undefined,
-        error: `Communication error: ${ message }. Original request: ${ JSON.stringify (request) }`,
+        data: undefined,
+        done: false,
+        error: `Communication error: ${ error }. Original request: ${ JSON.stringify (request) }`,
     }
 })
 
 function broadcastClientList () {
     for (const id in sockets) {
-        send (sockets[id], { type: 'register', message: { from: 'server', to: id, payload: clients } })
+        send (sockets[id], { type: 'register', from: 'server', to: id, message: {
+            data: clients,
+            done: false
+        }})
     }
 }
 
@@ -37,7 +43,7 @@ new Server ({ port })
         ws
             .on ('message', (msg: string) => {
                 const data = JSON.parse (msg) as SignalingMessageEnvelop<any>
-                const { type, message: { from, to } } = data
+                const { type, from, to, message } = data
 
                 if (!type) {
                     return send (ws, errorResponse ('Undefined message type', data))
@@ -49,7 +55,7 @@ new Server ({ port })
 
                 if (type === 'register') {
                     client = from
-                    clients[from] = data.message.payload
+                    clients[from] = message.data as User
                     sockets[from] = ws
 
                     return broadcastClientList ()
@@ -75,8 +81,6 @@ new Server ({ port })
 
             .on ('error', (error: Error) => {
                 if (clients[client]) {
-                    console.log ('Client', client, 'connection error:', error)
-
                     delete clients[client]
                     delete sockets[client]
                 }

@@ -14,7 +14,7 @@ import {
 const host = 'turn.neodequate.com'
 const port = ''
 
-async function Tunnel (from: string, to: string) {
+async function Tunnel (from: UserId, to: UserId) {
     const connection = new RTCPeerConnection ({
         iceServers: [{ urls: `stun:${ host }${ port ? `:${ port }` : `` }` }]
     })
@@ -28,23 +28,22 @@ async function Tunnel (from: string, to: string) {
 
     let candidateListEnd = false
 
-    connection.onicecandidate = async (event: RTCPeerConnectionIceEvent) => {
-        const getIceCandidate = await api.ice<SignalingMessage<RTCIceCandidate>, RTCIceCandidate> ({
-            from, to, payload: event.candidate
-        })
+    connection.onicecandidate = async ({ candidate: data }: RTCPeerConnectionIceEvent) => {
+        if (!data) return
 
-        const packet = await getIceCandidate ()
+        const getIceCandidate = await api.ice<RTCIceCandidate, RTCIceCandidate> ({ from, to, data }) // FIXME: no one receives the candidate on the other end
+        const { message } = await getIceCandidate ()
 
-        if (packet.error) {
-            console.error ('Ice candidate exchange error:', packet.error)
+        if (message.error) {
+            console.error ('Ice candidate exchange error:', message.error)
         }
 
-        if (packet.done) {
+        if (message.done) {
             console.info ('Ice candidate exchange unexpectedly completed')
             return
         }
 
-        const candidate = packet?.data?.message?.payload
+        const candidate = message.data
 
         if (candidate === null) {
             if (candidateListEnd) return
@@ -107,7 +106,6 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
         const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
 
         for (const track of media.getTracks ()) {
-            console.log ('adding a track', track.kind, audio, video)
             if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
             if (track.kind === 'video' && !video) video = connection.addTrack (track)
         }
@@ -225,76 +223,74 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
     }
 }
 
-async function requestChat (sender: User, recipient: User): Promise<ChatController> {
-    const connection = await Tunnel (sender.id, recipient.id)
+async function requestChat (from: UserId, to: UserId): Promise<ChatController> {
+    const connection = await Tunnel (from, to)
 
     connection.onnegotiationneeded = async () => {
         await connection.setLocalDescription (await connection.createOffer ())
-
-        const getAnswer = await api.sdp<SignalingMessage<RTCSessionDescription>, RTCSessionDescription> ({
-            from: sender.id,
-            to: recipient.id,
-            payload: connection.localDescription
+        console.log ('Sending the offer', { from, to,
+            data: connection.localDescription
+        })
+        const getAnswer = await api.sdp<RTCSessionDescription, RTCSessionDescription> ({ from, to,
+            data: connection.localDescription
         })
 
-        const packet = await getAnswer ()
+        const { message } = await getAnswer ()
 
-        if (packet.error) {
-            console.error ('Handshake error:', packet.error)
-            throw packet.error
+        console.log ('Answer received:', message)
+
+        if (message.error) {
+            console.error ('Handshake error:', message.error)
+            throw message.error
         }
 
-        if (packet.done) {
-            console.info ('Handshake unexpectedly completed', packet)
+        if (message.done) {
+            console.info ('Handshake unexpectedly completed', message)
             return
         }
 
-        await connection.setRemoteDescription (packet.data.message.payload)
+        await connection.setRemoteDescription (message.data)
     }
 
-    const channel = await connection.createDataChannel (`${ sender.id }-${ recipient.id }`)
-    const dataController = await initDataController (channel, sender.id, recipient.id)
+    const channel = await connection.createDataChannel (`${ from }-${ to }`)
+    const dataController = await initDataController (channel, from, to)
 
     return { ...dataController, ...initMediaController (connection) }
 }
 
-async function awaitForChat (user: User): Promise<ChatController> {
+async function awaitForChat (to: UserId): Promise<ChatController> {
     let connection = undefined as RTCPeerConnection
     let chatController = Promised () as PromisedType<ChatController>
 
     ;(async () => {
-        const nextOffer = await api.sdp<undefined, RTCSessionDescription> (undefined)
+        const nextOffer = await api.sdp<undefined, RTCSessionDescription> ({ from: to, to: 'server' })
 
         while (true) {
             try {
-                const packet = await nextOffer ()
+                const { message, from } = await nextOffer ()
 
-                if (packet.error) throw packet.error
-                if (packet.done) {
+                if (message.error) throw message.error
+                if (message.done) {
                     console.log ('Offer issuer is exhausted')
                     break
                 }
 
-                const { message } = packet.data
-
-                if (!message.payload || message.payload.type !== 'offer' || !message.payload.sdp) {
+                if (!message.data || message.data.type !== 'offer' || !message.data.sdp) {
                     continue
                 }
 
                 if (!connection || connection.connectionState !== 'connected') {
-                    connection = await Tunnel (user.id, message.from)
+                    connection = await Tunnel (to, from)
                     connection.ondatachannel = async (e: RTCDataChannelEvent) => {
-                        const dataController = await initDataController (e.channel, user.id, message.from)
+                        const dataController = await initDataController (e.channel, to, from)
                         chatController.resolve ({ ...dataController, ...initMediaController (connection) })
                     }
                 }
 
-                await connection.setRemoteDescription (message.payload)
+                await connection.setRemoteDescription (message.data)
                 await connection.setLocalDescription (await connection.createAnswer ())
-                await api.sdp<SignalingMessage<RTCSessionDescription>, RTCSessionDescription> ({
-                    from: user.id,
-                    to: message.from,
-                    payload: connection.localDescription
+                await api.sdp<RTCSessionDescription, RTCSessionDescription> ({ from: to, to: from,
+                    data: connection.localDescription
                 })
 
             } catch (e) {

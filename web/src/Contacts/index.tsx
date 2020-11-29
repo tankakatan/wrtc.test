@@ -5,14 +5,14 @@ import './index.css'
 
 function Contacts () {
     const { user, startChat } = useAppContext ()
-    const { contacts } = useContactsContext ()
+    const { contacts = {} } = useContactsContext ()
 
     return (
         <ul>
             {
                 Object.values (contacts).map (c =>
                     <li key={ c.id } onClick={ () => startChat (c) }>
-                        { `${ c.name || c.id } (${ user && c.id === user.id ? 'you' : c.status })` }
+                        { `${ c.name || c.id } (${ user && c.id === user.id ? 'you' : 'online' })` }
                     </li>
                 )
             }
