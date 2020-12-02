@@ -26,33 +26,29 @@ async function Tunnel (from: UserId, to: UserId) {
         }
     }
 
-    let candidateListEnd = false
+    void (async () => {
+        const nextCandidate = await api.ice<undefined, RTCIceCandidate> ({ from, to })
+
+        while (true) {
+            try {
+                const { message } = await nextCandidate ()
+
+                if (message.error) throw new Error (message.error)
+                if (message.done) break
+
+                await connection.addIceCandidate (message.data)
+
+            } catch (e) {
+                console.error ('Ice candidate error', e)
+                break
+            }
+        }
+    }) ()
 
     connection.onicecandidate = async ({ candidate: data }: RTCPeerConnectionIceEvent) => {
-        if (!data) return
-
-        const getIceCandidate = await api.ice<RTCIceCandidate, RTCIceCandidate> ({ from, to, data }) // FIXME: no one receives the candidate on the other end
-        const { message } = await getIceCandidate ()
-
-        if (message.error) {
-            console.error ('Ice candidate exchange error:', message.error)
+        if (data) {
+            await api.ice<RTCIceCandidate, RTCIceCandidate> ({ from, to, data })
         }
-
-        if (message.done) {
-            console.info ('Ice candidate exchange unexpectedly completed')
-            return
-        }
-
-        const candidate = message.data
-
-        if (candidate === null) {
-            if (candidateListEnd) return
-            else candidateListEnd = true
-        } else {
-            candidateListEnd = false
-        }
-
-        await connection.addIceCandidate (candidate)
     }
 
     return connection
@@ -258,7 +254,7 @@ async function awaitForChat (to: UserId): Promise<ChatController> {
     let connection = undefined as RTCPeerConnection
     let chatController = Promised () as PromisedType<ChatController>
 
-    ;(async () => {
+    void (async () => {
         const nextOffer = await api.sdp<undefined, RTCSessionDescription> ({ from: to, to: 'server' })
 
         while (true) {
