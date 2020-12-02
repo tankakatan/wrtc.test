@@ -4,7 +4,7 @@ import { useAppContext } from '~App/Context'
 const CallContext = createContext ({
     inStream: undefined as MediaStream,
     outStream: undefined as MediaStream,
-    startCall: () => {},
+    startVoiceCall: () => {},
     startVideoCall: () => {},
     shareScreen: () => {},
 })
@@ -16,8 +16,8 @@ export default function ProvideCallContext ({ children }: { children: React.Reac
     const [ outStream, setOutStream ] = useState<MediaStream> (undefined)
     const { chat } = useAppContext ()
 
-    const startCall = useCallback (async () => {
-        if (chat) setInStream (await chat.startCall ())
+    const startVoiceCall = useCallback (async () => {
+        if (chat) setInStream (await chat.startVoiceCall ())
     }, [ chat ])
 
     const startVideoCall = useCallback (async () => {
@@ -53,7 +53,7 @@ export default function ProvideCallContext ({ children }: { children: React.Reac
     const context = {
         inStream,
         outStream,
-        startCall,
+        startVoiceCall,
         startVideoCall,
         shareScreen,
     }

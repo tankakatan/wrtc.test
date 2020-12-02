@@ -123,7 +123,7 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
         return stream
     }
 
-    const startCall = async () => {
+    const startVoiceCall = async () => {
 
         const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: video ? true : false })
 
@@ -207,7 +207,7 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
 
     return {
         media: () => incomingStreamPromise,
-        startCall,
+        startVoiceCall,
         startVideoCall,
         shareScreen,
         muteAudio,

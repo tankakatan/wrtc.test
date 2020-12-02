@@ -7,7 +7,7 @@ import './index.css'
 
 function Call (): React.ReactElement {
     const { chat } = useAppContext ()
-    const { inStream, outStream, startCall, startVideoCall } = useCallContext ()
+    const { inStream, outStream, startVoiceCall, startVideoCall, shareScreen } = useCallContext ()
 
     return chat ? (
         <div>
@@ -15,10 +15,11 @@ function Call (): React.ReactElement {
             { outStream ? <Video muted stream={ outStream }/> : null }
             {
                 inStream || outStream ? null : (
-                    <div>
-                        <a href='#' onClick={ startCall }>Call</a>
-                        <a href='#' onClick={ startVideoCall }>Video Call</a>
-                    </div>
+                    <ul>
+                        <li><a href='#' onClick={ startVoiceCall }>Voice call</a></li>
+                        <li><a href='#' onClick={ startVideoCall }>Video call</a></li>
+                        <li><a href='#' onClick={ shareScreen }>Share screen</a></li>
+                    </ul>
                 )
             }
         </div>
