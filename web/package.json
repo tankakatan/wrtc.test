@@ -4,8 +4,8 @@
   "description": "WebRTC Test Project",
   "main": "index.js",
   "scripts": {
-    "preinstall": "cd ../shared && npx typescript",
-    "postinstall": "rm node_modules/shared && mv ../shared node_modules/shared",
+    "preinstall": "cd ../shared && npm ci",
+    "postinstall": "rm node_modules/shared && cp -Rf ../shared node_modules/shared && tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "rm -rf dist .cache && NODE_ENV=test parcel src/index.html"
   },
@@ -29,6 +29,6 @@
     "@types/react": "^16.9.53",
     "@types/react-dom": "^16.9.8",
     "parcel": "^1.12.4",
-    "typescript": "^4.0.3"
+    "typescript": "^4.2.2"
   }
 }
