@@ -5,7 +5,7 @@ type Packet<T> = { from: UserId, to: UserId, data?: T }
 
 class WsTimeoutError extends Error {}
 
-const host = 'localhost'
+const host = 'neodequate.com'
 const port = '5976'
 
 const isWsError = (e: CloseEvent) => e.code !== 1000
