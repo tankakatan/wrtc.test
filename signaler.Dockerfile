@@ -10,7 +10,7 @@ COPY shared /home/builder/shared
 RUN chown -Rf builder:builder ../server ../shared
 USER builder
 
-RUN npm i && rm -rf src
+RUN npm i && ./node_modules/.bin/tsc && rm -rf src
 
 FROM node:alpine
 

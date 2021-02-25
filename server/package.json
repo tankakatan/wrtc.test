@@ -4,8 +4,7 @@
   "description": "WS server for webrtc connection handshake",
   "main": "build/index.js",
   "scripts": {
-    "preinstall": "cd ../shared && npm ci",
-    "postinstall": "rm node_modules/shared && cp -Rf ../shared node_modules/shared && ./node_modules/.bin/tsc",
+    "postinstall": "cd ./node_modules/shared && npm install && ./node_modules/.bin/tsc",
     "start": "node build/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
