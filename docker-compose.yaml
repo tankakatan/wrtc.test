@@ -1,14 +1,20 @@
 version: '3'
 
 services:
-  # coturn:
-  #   image: instrumentisto/coturn
-  #   network_mode: "host"
+  coturn:
+    image: instrumentisto/coturn
+    network_mode: "host"
 
   backend:
     build:
       context: .
       dockerfile: signaler.Dockerfile
-
     ports:
       - "5976:5976"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: client.Dockerfile
+    ports:
+      - "8080:80"

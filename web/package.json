@@ -6,7 +6,8 @@
   "scripts": {
     "postinstall": "cd ./node_modules/shared && npm install && ./node_modules/.bin/tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "rm -rf dist .cache && NODE_ENV=test parcel src/index.html"
+    "start": "rm -rf dist .cache && NODE_ENV=test parcel src/index.html",
+    "build": "rm -rf dist .cache && NODE_ENV=prod parcel build src/*.html --no-source-maps"
   },
   "alias": {
     "~": "./src",
