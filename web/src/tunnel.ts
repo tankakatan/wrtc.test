@@ -40,7 +40,20 @@ async function Tunnel (from: UserId, to: UserId) {
 
                 if (message.error) throw new Error (message.error)
                 if (message.done) break
-                if (!connection.remoteDescription) continue
+                const start = Date.now ()
+                while (Date.now () - start < 60000) {
+
+                    if (connection.remoteDescription) {
+                        break
+                    }
+
+                    await new Promise(resolve => {
+                        const t = setTimeout (() => {
+                            clearTimeout (t)
+                            resolve (undefined)
+                        }, 100)
+                    })
+                }
 
                 console.log('adding the ice candidate:')
 
