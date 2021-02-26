@@ -20,21 +20,29 @@ async function Tunnel (from: UserId, to: UserId) {
     })
 
     connection.oniceconnectionstatechange = () => {
-        if (connection.iceConnectionState === 'failed') {
+        console.log({'connection.iceConnectionState': connection.iceConnectionState})
+            // @ts-ignore
+        if (connection.iceConnectionState === 'failed' && typeof connection.restartIce === 'function') {
             // @ts-ignore
             connection.restartIce ()
         }
     }
 
     void (async () => {
-        const nextCandidate = await api.ice<undefined, RTCIceCandidate> ({ from, to })
+        // awaiting for new ice candidates
+        const nextCandidate = await api.ice<undefined, RTCIceCandidateInit> ({ from, to })
 
         while (true) {
             try {
                 const { message } = await nextCandidate ()
 
+                console.log('new ice:', message.data, connection.remoteDescription)
+
                 if (message.error) throw new Error (message.error)
                 if (message.done) break
+                if (!connection.remoteDescription) continue
+
+                console.log('adding the ice candidate:')
 
                 await connection.addIceCandidate (message.data)
 
@@ -45,9 +53,9 @@ async function Tunnel (from: UserId, to: UserId) {
         }
     }) ()
 
-    connection.onicecandidate = async ({ candidate: data }: RTCPeerConnectionIceEvent) => {
-        if (data) {
-            await api.ice<RTCIceCandidate, RTCIceCandidate> ({ from, to, data })
+    connection.onicecandidate = async ({ candidate }: RTCPeerConnectionIceEvent) => {
+        if (candidate) {
+            await api.ice<RTCIceCandidateInit, RTCIceCandidate> ({ from, to, data: candidate.toJSON () })
         }
     }
 
@@ -71,7 +79,7 @@ async function initDataController (channel: RTCDataChannel, sender: UserId, reci
         await new Promise ((resolve, reject) => {
             channel.onerror = channel.onclose = reject
             channel.onopen = () => {
-                resolve ()
+                resolve (undefined)
                 refresh ()
             }
         })
@@ -100,6 +108,12 @@ function initMediaController (connection: RTCPeerConnection): MediaController {
 
     const startVideoCall = async () => {
         const media = await navigator.mediaDevices.getUserMedia ({ audio: true, video: true })
+
+        // const transformer = new TransformStream ({
+        //     transform: (chunk, controller) => {
+        //         controller.enqueue (chunk)
+        //     }
+        // })
 
         for (const track of media.getTracks ()) {
             if (track.kind === 'audio' && !audio) audio = connection.addTrack (track)
