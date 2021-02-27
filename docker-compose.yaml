@@ -16,6 +16,8 @@ services:
 
   frontend:
     image: patapatam/webrtc-chat-client:latest
+    ports:
+      - "8080:80"
     environment:
       - SIGNALER_HOST=$SIGNALER_HOST
       - SIGNALER_PORT=$SIGNALER_PORT
