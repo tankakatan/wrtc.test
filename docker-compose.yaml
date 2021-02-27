@@ -12,12 +12,12 @@ services:
     ports:
       - "$SIGNALER_PORT:$SIGNALER_PORT"
     environment:
-      - PORT:$SIGNALER_PORT
+      - PORT=$SIGNALER_PORT
 
   frontend:
     image: patapatam/webrtc-chat-client:latest
     environment:
-      - SIGNALER_HOST:$SIGNALER_HOST
-      - SIGNALER_PORT:$SIGNALER_PORT
-      - STUN_HOST:$STUN_HOST
-      - STUN_PORT:$STUN_PORT
+      - SIGNALER_HOST=$SIGNALER_HOST
+      - SIGNALER_PORT=$SIGNALER_PORT
+      - STUN_HOST=$STUN_HOST
+      - STUN_PORT=$STUN_PORT
