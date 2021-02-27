@@ -11,8 +11,8 @@ import {
     ChatMessage,
 } from 'shared'
 
-const host = 'turn.neodequate.com'
-const port = ''
+const host = process.env.STUN_HOST || 'turn.neodequate.com'
+const port = process.env.STUN_PORT || ''
 
 async function Tunnel (from: UserId, to: UserId) {
     const connection = new RTCPeerConnection ({

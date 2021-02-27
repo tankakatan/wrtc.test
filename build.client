@@ -1,0 +1,5 @@
+#!/bin/sh
+
+docker build -f client.Dockerfile -t webrtc-chat-client:latest .
+docker image tag webrtc-chat-client:latest patapatam/webrtc-chat-client:latest
+docker push patapatam/webrtc-chat-client:latest

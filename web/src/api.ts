@@ -5,8 +5,8 @@ type Packet<T> = { from: UserId, to: UserId, data?: T }
 
 class WsTimeoutError extends Error {}
 
-const host = 'neodequate.com'
-const port = '5976'
+const host = process.env.SIGNALER_URL || 'neodequate.com'
+const port = process.env.SIGNALER_URL ? '' : process.env.SIGNALER_PORT || '5976'
 
 const isWsError = (e: CloseEvent) => e.code !== 1000
 const parseWsError = (e: CloseEvent) => {

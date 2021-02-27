@@ -16,8 +16,10 @@ RUN adduser -D -g 'www' www && mkdir -p /www /var/lib/nginx && \
 
 # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
 
-COPY ./nginx.conf /etc/nginx/nginx.conf
+COPY ./nginx.conf /etc/nginx/templates/nginx.conf.template
 COPY --from=builder /dist /www
+
+ENV NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
 
 EXPOSE 80
 
