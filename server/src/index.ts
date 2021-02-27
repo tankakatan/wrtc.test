@@ -2,7 +2,7 @@ import { IncomingMessage } from 'http'
 import WebSocket, { Server } from 'ws'
 import { SignalingMessageEnvelop, User, UserId } from 'shared'
 
-const port = process.env.PORT || 5976
+const port = parseInt (process.env.PORT) || 5976
 
 const clients = {} as { [id in UserId]: User }
 const sockets = {} as { [id in UserId]: WebSocket }
