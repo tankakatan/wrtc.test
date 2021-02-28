@@ -21,5 +21,6 @@ services:
     environment:
       - SIGNALER_HOST=$SIGNALER_HOST
       - SIGNALER_PORT=$SIGNALER_PORT
+      - SIGNALER_URL=$SIGNALER_URL
       - STUN_HOST=$STUN_HOST
       - STUN_PORT=$STUN_PORT
