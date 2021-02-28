@@ -19,8 +19,5 @@ services:
     ports:
       - "8080:80"
     environment:
-      - SIGNALER_HOST=$SIGNALER_HOST
+      - SIGNALER_HOST=backend
       - SIGNALER_PORT=$SIGNALER_PORT
-      - SIGNALER_URL=$SIGNALER_URL
-      - STUN_HOST=$STUN_HOST
-      - STUN_PORT=$STUN_PORT

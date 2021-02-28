@@ -5,9 +5,6 @@ type Packet<T> = { from: UserId, to: UserId, data?: T }
 
 class WsTimeoutError extends Error {}
 
-const host = process.env.SIGNALER_URL || 'neodequate.com'
-const port = process.env.SIGNALER_URL ? '' : process.env.SIGNALER_PORT || '5976'
-
 const isWsError = (e: CloseEvent) => e.code !== 1000
 const parseWsError = (e: CloseEvent) => {
     switch (e.code) {
@@ -55,7 +52,10 @@ const getSocket = () => {
     }
 
     return new Promise ((resolve, reject) => {
-        ws = Object.assign (new WebSocket (`ws://${ host }:${ port }`), { sendMessage, closeSocket })
+        ws = Object.assign (new WebSocket (process.env.SIGNALER_URL ||
+            `ws://${ process.env.SIGNALER_HOST }${
+                process.env.SIGNALER_HOST ? `:${ process.env.SIGNALER_HOST }` : ''
+            }`), { sendMessage, closeSocket })
 
         ws.onopen = () => resolve (ws)
         ws.onerror = reject

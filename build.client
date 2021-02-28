@@ -1,5 +1,17 @@
 #!/bin/sh
 
-docker build -f client.Dockerfile -t webrtc-chat-client:latest .
+if [ -f .env ]; then
+    export $(cat .env | sed 's/#.*//g' | xargs)
+fi
+
+docker build --no-cache \
+    --build-arg SIGNALER_URL=$SIGNALER_URL \
+    --build-arg SIGNALER_HOST=$SIGNALER_HOST \
+    --build-arg SIGNALER_PORT=$SIGNALER_PORT \
+    --build-arg STUN_HOST=$STUN_HOST \
+    --build-arg STUN_PORT=$STUN_PORT \
+    -f client.Dockerfile \
+    -t webrtc-chat-client:latest .
+
 docker image tag webrtc-chat-client:latest patapatam/webrtc-chat-client:latest
 docker push patapatam/webrtc-chat-client:latest
